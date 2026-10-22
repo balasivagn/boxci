@@ -1,6 +1,6 @@
 # Operations and troubleshooting
 
-Commands here assume `boxci` is available through the GitHub installation or a locally packed installation, and you are in the target repository checkout. Otherwise add `--repo owner/repository`; migration still requires that repository's checkout. See [installation and setup](../README.md#first-successful-ci-run).
+Commands here assume `boxci` is available through `npm install -g @balasivagn/boxci` (or a source or locally packed installation), and you are in the target repository checkout. Otherwise add `--repo owner/repository`; migration still requires that repository's checkout. See [installation and setup](../README.md#quick-start).
 
 ## Check the pool
 
@@ -76,8 +76,8 @@ The wake helper checks active runner services, not GitHub connectivity. Hosted f
 
 | Problem                                                                | Action                                                                                                                                                                                                                                                                                             |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `boxci: command not found`                                             | Install the CLI from GitHub, then put your npm global executable directory on `PATH`. See the README for the user-owned prefix option.                                                                                                                                                             |
-| Cannot clone the candidate                                             | Check the public repository URL and GitHub connectivity. The npm package is not published; use the source checkout or a local tarball.                                                                                                                                                             |
+| `boxci: command not found`                                             | Run `npm install -g @balasivagn/boxci`, then put your npm global executable directory on `PATH`. See the README for the user-owned prefix option.                                                                                                                                                  |
+| Cannot install the package                                             | Check npm registry connectivity and Node.js 22+. As a fallback, install from the source checkout or a local tarball.                                                                                                                                                                               |
 | Sign-in is needed in automation                                        | Run `boxci init` interactively first. `--yes` skips plan confirmation, not service authentication.                                                                                                                                                                                                 |
 | Account changed                                                        | Sign back into the account named by the project record. BoxCI refuses mutations across identities. Check `INSTABOX_API_KEY` if set as well as CLI sign-in.                                                                                                                                         |
 | Repository admin access or workflow scope missing                      | Use an account with repo admin permissions and complete any official GitHub consent requested for workflow upload.                                                                                                                                                                                 |
@@ -99,6 +99,6 @@ There is no automatic uninstall/teardown command. Review and perform cleanup exp
 2. Remove the dedicated repository runner registrations in GitHub settings and stop their services through official provider access.
 3. Revoke the dedicated CI key through the official InstaBox tooling, then remove its GitHub Actions secret and selected pool variable after checking they are not shared by another workflow.
 4. Review the dedicated VMs in the provider console and remove them manually only when no longer needed. Uninstalling the local npm CLI or closing the dashboard does not remove VMs or change provider usage.
-5. After cloud cleanup, remove the local project record and any local candidate installation you no longer need.
+5. After cloud cleanup, remove the local project record and any local BoxCI installation you no longer need.
 
 Verify account, VM names and repository ownership throughout cleanup. Keep the record until the resources it identifies have been reviewed.

@@ -1,6 +1,6 @@
-# Candidate validation
+# Validation
 
-v0.1.0 candidate, 23 October 2026. This record covers standalone BoxCI checks that require no live credentials.
+v0.1.0, 23 October 2026. This record covers standalone BoxCI checks that require no live credentials.
 
 ## Automated coverage
 
@@ -18,7 +18,7 @@ The pinned SDK is exercised against a local HTTP fixture. Provider and GitHub op
 
 ## Verification limits
 
-Fresh cloud provisioning, key creation and missing-tool installation are exercised with injected transports. A brand-new account/provider consent flow and native Linux/Windows bootstrap still need verification. Browser sign-in remains delegated to official CLIs. Candidate npm publication is disabled.
+Fresh cloud provisioning, key creation and missing-tool installation are exercised with injected transports. A brand-new account/provider consent flow and native Linux/Windows bootstrap still need verification. Browser sign-in remains delegated to official CLIs.
 
 Manual dispatch prerequisites are documented against [GitHub's requirements](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow#configuring-a-workflow-to-run-manually). Architecture diagram verification is recorded in [the architecture guide](ARCHITECTURE.md).
 

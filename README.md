@@ -1,164 +1,284 @@
+<div align="center">
+
 # BoxCI
 
-Run GitHub Actions on a small pool of InstaBox VMs that wake for CI and suspend when idle. BoxCI handles runner setup, credentials and workflow routing. An optional local dashboard shows the pool without keeping it awake.
+**GitHub Actions runners on your own InstaBox VMs.<br>They wake up for CI and pause again when idle.**
 
-Use it when you want dedicated, persistent Linux runners and are willing to manage an InstaBox account and renew a CI credential. Hosted GitHub runners remain a simpler choice when you do not need your own VMs. Measure your own build times and provider usage; BoxCI does not promise lower costs or faster builds.
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Node >= 22](https://img.shields.io/badge/node-%3E%3D22-339933.svg?logo=node.js&logoColor=white)](package.json)
+[![npm version](https://img.shields.io/npm/v/@balasivagn/boxci.svg)](https://www.npmjs.com/package/@balasivagn/boxci)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
-**v0.1.0 candidate; not published to npm yet.** The intended package is **`@balasivagn/boxci`**. This project is independent of InstaBox and is **not affiliated with [boxci.dev](https://boxci.dev)**.
+[Quick start](#quick-start) · [How it works](#how-it-works) · [Commands](#commands) · [Migrate jobs](#move-existing-jobs-onto-the-pool) · [Good to know](#good-to-know) · [Docs](#docs)
 
-## Requirements and scope
+</div>
 
-- Node.js **22 or newer**, npm, Git, and access to GitHub.
-- A GitHub.com repository where you have **admin access**, with Actions enabled.
-- An InstaBox account with capacity for at least one additional VM, or an existing verified CI pool. Paused/stopped VMs still count toward quota. Prefer a dedicated CI account: the CI key can execute commands on all VMs in its account.
-- A terminal for the official GitHub and InstaBox sign-in flows. Existing sessions are reused. BoxCI bundles the official InstaBox CLI as a fallback and can install a checksum-verified GitHub CLI privately when missing.
+---
 
-The starter workflow uses **Linux x64 runners, Node 24 and one build job**. It infers npm/pnpm tests from the target repository's default-branch `package.json`; use `--command` for a different command. Other language toolchains need explicit workflow setup. The starter runs for non-draft PRs and manual dispatch, with no `push` trigger. Fork PRs use hosted Ubuntu.
+More pull requests mean more CI runs. Coding agents now open them too, and every one still needs builds and tests before anyone can trust it.
 
-The commands below use a POSIX shell. Linux/Windows bootstrap and fresh-account authentication still need native verification. See [validation coverage](docs/VALIDATION.md).
+Hosted minutes run out. A spare machine as a runner turns into a queue the moment a few people push at once.
 
-## First successful CI run
+**BoxCI turns InstaBox VMs into dedicated GitHub Actions runners for your repository.** One command plans the setup, one PR wires up the workflow, and your jobs run on machines you control.
 
-### 1. Install the CLI
+## How it works in 3 steps
 
-Install directly from the public GitHub repository:
+|       | Step                    | What happens                                                                                                                                                               |
+| :---: | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1** | **`boxci init`**        | Reuses your GitHub and InstaBox sign-ins, shows the full plan, then creates a dedicated VM and registers it as a runner. No cloud resources are created until you approve. |
+| **2** | **Merge the PR**        | Setup ends in a normal workflow PR. You review it and merge it through your usual process. BoxCI never merges for you.                                                     |
+| **3** | **Jobs run on your VM** | A small hosted job wakes the pool for each trusted run, and GitHub hands the build to your runner. Between builds, the VMs pause as usual.                                 |
+
+## Why BoxCI
+
+- **Reviewable from start to finish.** A dry run shows exactly what will be created. The real run ends in a PR, not a surprise.
+- **Nothing extra to keep running.** No keepalive, no webhook server, no BoxCI account. The wake step lives inside GitHub Actions.
+- **Close your laptop after setup.** CI wakes the pool on its own. The CLI and dashboard are only for you.
+- **Bring your existing CI.** `boxci migrate` retargets jobs you already have (Blacksmith `runs-on` labels, for example) as a local diff you review and commit.
+- **A dashboard that watches without touching.** `boxci dashboard` is local, authenticated and read-only. It never wakes a VM.
+- **Hosted fallback built in.** Fork PRs, or a pool that is not fully ready, run on hosted Ubuntu instead. Fork code never receives your provider key.
+
+## Quick start
+
+You need Node.js 22+, Git, admin access to a GitHub repository, and an InstaBox account with room for one more VM. See [full requirements](#requirements).
+
+**1. Install the CLI:**
 
 ```sh
-npm install --global https://github.com/balasivagn/boxci/archive/refs/heads/main.tar.gz
+npm install -g @balasivagn/boxci
 boxci --help
 ```
 
-This downloads the current `main` snapshot and installs the CLI with its dependencies. No manual clone, pack step or npm publication is required. Run the same install command to update. To pin a reviewed snapshot, replace `refs/heads/main` in the URL with its commit SHA.
-
-Ensure npm's global executable directory is on `PATH`. For a user-owned prefix, use:
-
-```sh
-npm install --global --prefix "$HOME/.local" https://github.com/balasivagn/boxci/archive/refs/heads/main.tar.gz
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-For source development, see [Develop](#develop), or [install a locally packed candidate](#install-a-packed-candidate). The registry command `npm install --global @balasivagn/boxci` will become available after a separate npm release.
-
-### 2. Choose your workflow path and review setup
-
-| Your goal                           | Path                                                                                                                                                                 |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Add a basic Node CI workflow        | Run setup below, then review and merge the generated workflow PR.                                                                                                    |
-| Move existing CI jobs onto the pool | Run setup below, then follow [Migrate existing workflows](#migrate-existing-workflows). Setup still opens a starter workflow PR; migration is a separate local edit. |
-| Reuse an existing pool              | Start with a dry run and read [pool discovery and recovery](docs/CONFIGURATION.md#pool-discovery-and-recovery), especially on a new machine.                         |
-
-Change to the **application repository checkout**, replacing `/path/to/your-app`:
+**2. Preview, then set up,** from your app's checkout:
 
 ```sh
 cd /path/to/your-app
 boxci init --dry-run
-```
-
-BoxCI reuses or opens the official sign-ins, checks account quota, and displays the target repository, account, runner label, test command and planned actions. A dry run creates no VMs, runners, CI keys, repository settings or local project record; sign-in/tool bootstrap may still occur.
-
-Confirm that the account, repository and command are correct, then run:
-
-```sh
 boxci init
 ```
 
-Approve the displayed plan. New setup creates one dedicated VM by default, installs a checksum-verified GitHub runner service, transfers a validated 30-day provider key directly to an Actions secret, sets the pool variable, and opens a workflow PR. It does not merge the PR. Reruns resume saved checkpoints.
+The dry run shows the account, repository, runner label, test command and every planned action. It creates no VMs, runners, keys or repository settings. `boxci init` asks you to approve that plan, then provisions the VM and opens a workflow PR.
 
-Use `--repo owner/repository` to choose the target explicitly. To override test inference, pass the same command to both preview and setup, for example:
+**3. Review and merge the PR, then run CI:**
 
-```sh
-boxci init --command "npm ci && npm run test:ci" --dry-run
-boxci init --command "npm ci && npm run test:ci"
-```
-
-### 3. Review, merge and verify
-
-Open the PR URL printed by setup. Review the generated test command, Node version and triggers, then merge through your normal repository controls. The setup PR itself can run CI before merge; draft PRs skip the generated wake/build jobs.
-
-After merging:
+Check the generated test command, Node version and triggers before you merge. The setup PR itself can already run CI.
 
 ```sh
-boxci doctor
 boxci ci run
-boxci status
 ```
 
-`ci run` requests a manual run of the configured workflow on the default branch; it does not wait for completion. Check the **BoxCI** run in GitHub Actions for the final result and runner assignment. `status` shows the pool and recent jobs; `doctor` checks the mapping, merge state, quota and known credential expiry.
+Open the **BoxCI** run in GitHub Actions and watch your first job land on your own runner. `boxci status` shows the pool and recent jobs.
 
-For an optional live view:
+<details>
+<summary><b>Install tips:</b> PATH, updating, installing from main, custom test commands</summary>
 
-```sh
-boxci dashboard
+<br>
+
+- **`boxci: command not found`?** Put npm's global bin directory on `PATH`, or install into a user-owned prefix:
+
+  ```sh
+  npm install -g --prefix "$HOME/.local" @balasivagn/boxci
+  export PATH="$HOME/.local/bin:$PATH"
+  ```
+
+- **Update:** run the same install command again.
+- **Install from source (`main`):** to try unreleased changes, install the current `main` snapshot straight from GitHub:
+
+  ```sh
+  npm install -g https://github.com/balasivagn/boxci/archive/refs/heads/main.tar.gz
+  ```
+
+  To pin a reviewed snapshot, replace `refs/heads/main` in the URL with a commit SHA.
+
+- **Choose the repository explicitly:** add `--repo owner/repository`.
+- **Override the inferred test command:** pass the same command to the preview and the real run.
+
+  ```sh
+  boxci init --command "npm ci && npm run test:ci" --dry-run
+  boxci init --command "npm ci && npm run test:ci"
+  ```
+
+- **Interrupted?** Rerun `boxci init`. It resumes from saved checkpoints.
+- **Reusing an existing pool?** Start with a dry run and read [pool discovery and recovery](docs/CONFIGURATION.md#pool-discovery-and-recovery), especially on a new machine.
+
+</details>
+
+## How it works
+
+![BoxCI architecture: local setup, hosted wake routing, and passive monitoring](docs/architecture/boxci.svg)
+
+1. **Wake.** A hosted Ubuntu job reads the pool variable and CI secret. For a trusted event it wakes every pool VM at once and checks their runner services. This privileged step never checks out PR code.
+2. **Route.** If the whole pool is ready, the build targets your dedicated self-hosted label. Otherwise, and always for fork PRs, it falls back to hosted `ubuntu-24.04`.
+3. **Run.** GitHub assigns the build to an idle runner with matching labels. Afterwards the VMs keep InstaBox's normal idle suspension.
+
+```mermaid
+flowchart LR
+  PR["PR or manual run"] --> W["boxci-wake<br/>(hosted Ubuntu)"]
+  W -->|pool ready| S["Your InstaBox runner"]
+  W -->|"fork PR or pool not ready"| H["Hosted ubuntu-24.04"]
 ```
 
-The dashboard is local, authenticated and read-only. You can close it and your laptop after setup: hosted GitHub wake jobs run independently.
+Go deeper: [architecture and source map](docs/ARCHITECTURE.md) · [interactive diagram](docs/architecture/boxci.html) (download and open locally)
 
-## Migrate existing workflows
+## Commands
 
-After `init`, run from the **target repository checkout**:
+| Command                       | What it does                                                 |
+| ----------------------------- | ------------------------------------------------------------ |
+| `boxci init`                  | Plan and set up runners, secret, pool variable, workflow PR  |
+| `boxci init --dry-run`        | Preview setup without creating anything                      |
+| `boxci ci run`                | Dispatch the BoxCI workflow on the default branch            |
+| `boxci ci run --ref <branch>` | Dispatch on an explicit ref                                  |
+| `boxci status`                | VM and runner states plus recent jobs (passive)              |
+| `boxci doctor`                | Check account, quota, mapping, merge state, key expiry       |
+| `boxci dashboard`             | Local, read-only live view (`--no-open` to skip the browser) |
+| `boxci wake`                  | Explicitly wake the pool                                     |
+| `boxci pool add --count 1`    | Add a VM to the pool, within your quota                      |
+| `boxci auth renew`            | Rotate the 30-day CI credential                              |
+| `boxci migrate`               | Move existing workflow jobs onto the pool                    |
+
+Common flags: `--dry-run` previews any change, `--yes` applies a reviewed plan without a prompt, `--json` returns structured output, and `--repo owner/repository` works outside the checkout. `status`, `doctor` and `dashboard` never run guest commands or wake VMs.
+
+## Move existing jobs onto the pool
+
+Already have CI? After `boxci init`, run this from the target repository's checkout:
 
 ```sh
 boxci migrate --match blacksmith --dry-run
 boxci migrate --match blacksmith
-# Or choose jobs interactively:
-boxci migrate
 ```
 
-Migration adds a hosted `boxci-wake` job and updates selected jobs' `needs` and `runs-on`. It edits files locally; review `git diff`, commit, and push or open a PR yourself. It does not push changes. `--match` matches a regular expression against the existing `runs-on` value; `--jobs file.yml:job,...` selects explicit jobs.
+Or run `boxci migrate` with no flags to pick jobs interactively. Prefer explicit jobs? Use `--jobs file.yml:job,...`. To do it in one go, `boxci init --migrate-workflows` runs the same migration right after setup.
 
-Select jobs that can run on **Linux x64** and whose steps work on both the InstaBox VM and hosted Ubuntu fallback. Migration changes scheduling, not language/toolchain setup, services or caches. It scans static `runs-on` values; dynamic expressions are skipped. Review matrix jobs and complex `needs` manually.
+Migration adds a hosted `boxci-wake` job and points the selected jobs at the pool:
 
-`boxci init --migrate-workflows` runs the same migration after setup. The starter workflow is separate and is skipped by migration. If your existing CI already covers its tests, review whether to keep the starter enabled to avoid duplicate builds. Agent-assisted guidance is in [the migration skill](skills/boxci-migrate/SKILL.md).
+```yaml
+needs: boxci-wake
+runs-on: ${{ fromJSON(needs.boxci-wake.outputs.runner) }}
+```
 
-## Everyday operations
+It edits files locally and pushes nothing. Review `git diff`, then commit and open a PR yourself. Working with a coding agent? Point it at the [migration skill](skills/boxci-migrate/SKILL.md).
+
+<details>
+<summary>What migration does and does not change</summary>
+
+<br>
+
+- `--match` is a regular expression tested against each job's existing `runs-on` value.
+- Pick jobs that run on **Linux x64** and whose steps work on both the InstaBox VM and the hosted Ubuntu fallback.
+- Migration changes scheduling only. Toolchains, services and caches stay as they are.
+- Only static `runs-on` values are scanned. Dynamic expressions are skipped. Review matrix jobs and complex `needs` by hand.
+- The starter workflow is separate and is skipped by migration. If your existing CI already runs the same tests, decide whether to keep the starter enabled to avoid duplicate builds.
+
+</details>
+
+## Good to know
+
+BoxCI is a young project and it tries to be precise about what it does. The details below matter, so they are collected here rather than scattered through the page.
+
+<a id="requirements"></a>
+
+<details>
+<summary><b>Requirements</b></summary>
+
+<br>
+
+- Node.js **22 or newer**, npm, Git and access to GitHub.
+- A GitHub.com repository where you have **admin access**, with Actions enabled.
+- An InstaBox account with capacity for at least one additional VM, or an existing verified CI pool. Paused or stopped VMs still count toward quota.
+- A terminal for the official GitHub and InstaBox sign-in flows. Existing sessions are reused. BoxCI bundles the official InstaBox CLI as a fallback and can install a checksum-verified GitHub CLI privately when it is missing.
+- **Use a dedicated InstaBox account for CI if you can.** The CI key can execute commands on every VM in its account.
+
+</details>
+
+<details>
+<summary><b>What the starter workflow covers</b></summary>
+
+<br>
+
+- **Linux x64** runners, **Node 24** and **one build job**.
+- The test command is inferred for npm or pnpm from `package.json` on the target repository's **default branch**. Use `--command` for anything else. Other language toolchains need explicit workflow setup.
+- Triggers: non-draft PRs and manual dispatch. There is **no `push` trigger**. Draft PRs skip the wake and build jobs.
+- Fork PRs always use hosted Ubuntu.
+
+</details>
+
+<details>
+<summary><b>How much capacity do I get?</b></summary>
+
+<br>
+
+One runner handles one job at a time. A pool can hold up to five distinct VMs, subject to your actual account quota, and a single VM is a complete setup. To use several VMs in parallel you need multiple jobs or a matrix; adding VMs does not split one job. BoxCI never deletes another VM to free quota.
+
+</details>
+
+<details>
+<summary><b>Will it save money or make builds faster?</b></summary>
+
+<br>
+
+BoxCI makes no cost or speed promises. It does not charge a runner-minute fee, but InstaBox usage, the hosted wake and fallback jobs, and any other services follow their own billing, and BoxCI enforces no spending cap. Measure your own build times and provider usage. If you do not need your own VMs, hosted GitHub runners remain the simpler choice. Check current provider terms in the InstaBox [limits](https://instabox.sh/docs/limits) and [changelog](https://instabox.sh/changelog).
+
+</details>
+
+<details>
+<summary><b>The CI credential expires every 30 days</b></summary>
+
+<br>
+
+Setup installs a validated 30-day provider key as an Actions secret. `boxci doctor` flags a known expiry within seven days. There is **no automatic renewal or reminder**, so schedule your own:
 
 ```sh
-boxci status                       # VM and GitHub runner states; passive
-boxci doctor                       # account, quota, mapping, merge and expiry checks
-boxci pool add --count 1 --dry-run  # preview extra capacity
-boxci pool add --count 1            # review and add capacity
-boxci wake                         # explicitly wake the pool
-boxci ci run                       # dispatch the configured workflow
-boxci ci run --ref your-test-branch # choose an explicit ref; see troubleshooting
-boxci auth renew --dry-run         # preview credential rotation
-boxci auth renew                   # review and rotate the CI credential
-boxci dashboard                    # local read-only UI
+boxci auth renew --dry-run
+boxci auth renew
 ```
 
-Add `--repo owner/repository` outside its checkout. Use `--yes` to apply a reviewed plan without a terminal prompt and `--json` for structured results. Status, doctor and dashboard never execute guest commands or wake VMs.
+If the key expires, the wake job falls back to hosted Ubuntu until you renew. See [renewing the CI credential](docs/OPERATIONS.md#renew-the-ci-credential).
 
-One runner handles one job at a time. Pools support up to five distinct VMs, subject to actual account quota. Multiple jobs or a matrix are needed to use several VMs in parallel.
+</details>
 
-**Renew the CI credential before its 30-day expiry.** `doctor` flags known expiry within seven days. There is no automatic renewal or reminder service. See [operations and troubleshooting](docs/OPERATIONS.md) for rotation, recovery, queued jobs and stopping use.
+<details>
+<summary><b>A job stays queued after wake</b></summary>
 
-## How routing works
+<br>
 
-![BoxCI architecture: local setup, hosted wake routing, and passive monitoring](docs/architecture/boxci.svg)
+Runner service readiness does not prove GitHub connectivity. Fallback is chosen before GitHub assigns the job, so it cannot rescue a job already queued on a disconnected self-hosted runner. See [troubleshooting a queued job](docs/OPERATIONS.md#a-job-stays-queued-after-wake).
 
-[Architecture and source map](docs/ARCHITECTURE.md) · [Interactive Archify diagram](docs/architecture/boxci.html) (download and open locally; GitHub shows HTML as source)
+</details>
 
-1. A hosted Ubuntu wake job reads the repository's pool variable and CI secret. Its privileged phase never checks out PR code.
-2. For a trusted event, it wakes all reviewed pool members concurrently and checks their runner services. If the full pool is ready, it selects `["self-hosted", "Linux", "<dedicated-label>"]`; otherwise it selects hosted `ubuntu-24.04`. Fork PRs always use hosted fallback.
-3. GitHub assigns each build job to an idle runner matching all selected labels. VMs keep normal idle suspension; BoxCI installs no keepalive or webhook server.
+<details>
+<summary><b>Project status and what is verified</b></summary>
 
-Service readiness does **not** prove GitHub connectivity. Fallback is chosen before assignment and cannot rescue a job already queued on a disconnected self-hosted runner.
+<br>
 
-See [configuration and authentication](docs/CONFIGURATION.md) for local records, repository settings and labels, and [security](SECURITY.md) for credential scope and isolation limits. Account API results are authoritative for quota; current provider details are in its [limits](https://instabox.sh/docs/limits) and [changelog](https://instabox.sh/changelog).
+- BoxCI is at **v0.1.0**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
+- Commands in this README use a POSIX shell. Native Linux and Windows bootstrap and fresh-account authentication still need verification. Details are in [validation coverage](docs/VALIDATION.md).
+- There is no automatic uninstall. Cleanup steps are in [stop using BoxCI](docs/OPERATIONS.md#stop-using-boxci).
 
-## Install a packed candidate
+</details>
 
-From the BoxCI source directory, with an npm global prefix writable by your user:
+<details>
+<summary><b>Affiliation</b></summary>
 
-```sh
-mkdir -p dist
-npm run pack:local
-npm install --global ./dist/balasivagn-boxci-0.1.0.tgz
-boxci --help
-```
+<br>
 
-Ensure your npm global executable directory is on `PATH`. The package remains unpublished on npm; a local tarball installation does not publish it.
+BoxCI is an independent open-source integration. It is not built or endorsed by InstaBox, and it is **not affiliated with [boxci.dev](https://boxci.dev)**.
 
-## Develop
+</details>
+
+## Docs
+
+| Guide                                            | Read it for                                                          |
+| ------------------------------------------------ | -------------------------------------------------------------------- |
+| [Configuration](docs/CONFIGURATION.md)           | Sign-in, local project records, repository settings, pool discovery  |
+| [Operations](docs/OPERATIONS.md)                 | Status, renewal, adding capacity, recovery, troubleshooting, cleanup |
+| [Architecture](docs/ARCHITECTURE.md)             | Setup, CI and monitoring paths, with a source map                    |
+| [Validation](docs/VALIDATION.md)                 | What is tested today and what still needs verification               |
+| [Security](SECURITY.md)                          | Credential scope and isolation limits                                |
+| [Migration skill](skills/boxci-migrate/SKILL.md) | Agent-assisted workflow migration                                    |
+
+## Contributing
+
+Issues and PRs are welcome. The test suites need no live credentials.
 
 ```sh
 git clone https://github.com/balasivagn/boxci.git
@@ -170,10 +290,35 @@ npm run check
 npm pack --dry-run
 ```
 
-No live credentials are needed. Tests use injected transports and local HTTP fixtures; the Node tests need permission to bind loopback sockets. Keep live inventory, logs and scratch files in ignored `.orca-scratch/`.
+<details>
+<summary>Notes for contributors</summary>
 
-[Developer experience contract](docs/DEVELOPER_EXPERIENCE.md) · [Design tokens](docs/DESIGN.md) · [Validation](docs/VALIDATION.md)
+<br>
+
+- Tests use injected transports and local HTTP fixtures. The Node tests need permission to bind loopback sockets.
+- Keep live inventory, logs and scratch files in the ignored `.orca-scratch/` directory.
+- `ci/wake.py` and `vendor/install.sh` are security-sensitive. Changes there need matching Python tests. See [AGENTS.md](AGENTS.md).
+- To try a packed build locally:
+
+  ```sh
+  mkdir -p dist
+  npm run pack:local
+  npm install --global ./dist/balasivagn-boxci-0.1.0.tgz
+  ```
+
+- More: [developer experience contract](docs/DEVELOPER_EXPERIENCE.md) · [design tokens](docs/DESIGN.md)
+
+</details>
 
 ## License
 
-Apache-2.0. Third-party notices are in [NOTICE](NOTICE) and `vendor/`. Official provider tools and vendored fonts retain their own licenses.
+[Apache-2.0](LICENSE). Third-party notices are in [NOTICE](NOTICE) and `vendor/`. Official provider tools and vendored fonts keep their own licenses.
+
+---
+
+<div align="center">
+
+Made by [Bala](https://github.com/balasivagn).<br>
+If BoxCI helps your team, a star or an issue with what you learned means a lot.
+
+</div>

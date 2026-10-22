@@ -1,6 +1,6 @@
 # Configuration and authentication
 
-Start with the [first successful CI run](../README.md#first-successful-ci-run). This reference explains what setup stores and how later commands find it.
+Start with the [Quick start](../README.md#quick-start). This reference explains what setup stores and how later commands find it.
 
 ## Authentication on your machine
 

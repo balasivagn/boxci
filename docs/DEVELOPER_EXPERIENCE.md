@@ -30,4 +30,4 @@ Status and dashboard are passive. Paused is a valid VM state; offline is a separ
 
 ## Distribution gates
 
-The source and packed candidate work now. The npm package is intentionally private/unpublished until a reviewed release. Do not advertise an executable public npx command before publishing. Linux/Windows live bootstrap and fresh-account browser authentication require their own environment verification; injected tests do not substitute for those claims.
+v0.1.0 is published to npm as `@balasivagn/boxci`; source and packed installs also work. Linux/Windows live bootstrap and fresh-account browser authentication require their own environment verification; injected tests do not substitute for those claims.

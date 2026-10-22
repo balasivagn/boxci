@@ -11,4 +11,4 @@
 - Wake CI uses the existing tested Python helper, fixed provider endpoint, no credential-forwarding redirects, bounded retries/deadlines and no PR checkout in the privileged phase. Forks never invoke cloud wake. Hosted fallback happens before assignment.
 - No deletion, snapshotting, secret delivery, background alerting or periodic keepalive feature is installed.
 
-This candidate is not a public service. Report security concerns privately to the repository owner. Do not post credentials in issues.
+BoxCI is an early release, not a hosted service. Report security concerns privately to the repository owner. Do not post credentials in issues.

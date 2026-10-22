@@ -9,4 +9,4 @@ Standalone CLI-first GitHub Actions integration; InstaBox is the first provider.
 - Keep source and tests here. Scratch/logs/live inventory go in ignored `.orca-scratch/`. Never commit private provider/GitHub/local state.
 - Use `npm test`, `python3 -m unittest discover -s ci/tests`, `npm run check`, and `npm pack --dry-run`. These tests need no live credentials.
 - `web/tokens.css` owns visual tokens. Browser data renders with textContent; maintain loopback binding, host/origin checks, authenticated sessions and the read-only API.
-- Publishing `@balasivagn/boxci` to npm is a separate reviewed release step. The npm package remains private until then.
+- Publishing a new `@balasivagn/boxci` version to npm is a separate reviewed release step.
