@@ -1,0 +1,8 @@
+BoxCI (boxci) — independent GitHub Actions integration; InstaBox is the first provider.
+
+Apache-2.0. Third-party notices for bundled components are in vendor/.
+
+This project is not affiliated with boxci.dev, InstaBox/InsForge, or GitHub.
+Official SDK/CLI dependencies retain their respective licenses.
+Website semantic token values adapted from InstaBox's public stylesheet;
+source and mapping documented in docs/DESIGN.md. No provider logos copied.

@@ -1,0 +1,61 @@
+/* Semantic values adapted from https://instabox.sh/assets/a63c38bbfb2fccd1/style.css, 2026-10-22. */
+@font-face {
+  font-family: Inter;
+  src: url("/fonts/inter.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist-mono.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+:root {
+  color-scheme: light;
+  --font-sans: Inter, system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --semantic-0: 255 255 255;
+  --semantic-1: 247 247 247;
+  --semantic-2: 240 240 240;
+  --semantic-3: 232 232 232;
+  --semantic-4: 224 224 224;
+  --foreground: 0 0 0;
+  --muted-foreground: 82 82 82;
+  --primary: 0 0 0;
+  --inverse: 255 255 255;
+  --success: 22 163 74;
+  --warning: 217 119 6;
+  --destructive: 220 38 38;
+  --info: 2 132 199;
+  --border: 0 0 0 / 0.08;
+  --card: 255 255 255;
+  --page: 247 247 247;
+  --code-accent: 2 132 199;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --space: 4px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --semantic-0: 22 22 22;
+  --semantic-1: 18 18 18;
+  --semantic-2: 31 31 31;
+  --semantic-3: 36 36 36;
+  --semantic-4: 41 41 41;
+  --foreground: 255 255 255;
+  --muted-foreground: 163 163 163;
+  --primary: 255 255 255;
+  --inverse: 0 0 0;
+  --success: 34 197 94;
+  --warning: 245 158 11;
+  --destructive: 239 68 68;
+  --info: 14 165 233;
+  --border: 255 255 255 / 0.08;
+  --card: 18 18 18;
+  --page: 18 18 18;
+  --code-accent: 116 174 234;
+}

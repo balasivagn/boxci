@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BoxCI</title>
+    <link rel="stylesheet" href="/tokens.css" />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/"
+        ><span class="mark" aria-hidden="true">↗</span> instabox<span
+          class="brand-sub"
+          >CI</span
+        ></a
+      >
+      <div class="header-right">
+        <span class="local-dot"></span><span>Local dashboard</span
+        ><button id="theme" aria-label="Switch color theme">Light mode</button>
+      </div>
+    </header>
+    <main>
+      <div class="page-heading">
+        <div>
+          <div class="eyebrow">GITHUB ACTIONS · INSTABOX</div>
+          <h1>Your CI, ready when it’s needed.</h1>
+          <p class="lede">
+            Persistent runners. On-demand wake. One pool to keep an eye on.
+          </p>
+        </div>
+        <button id="refresh" class="primary">Refresh</button>
+      </div>
+      <div id="error" role="alert" hidden>
+        <span id="error-text"></span><button id="retry">Try again</button>
+      </div>
+      <section id="loading" aria-live="polite">
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <p>Checking your pool…</p>
+      </section>
+      <div id="content" hidden>
+        <div class="context">
+          <strong id="repo"></strong><span id="account"></span
+          ><span id="checked"></span>
+        </div>
+        <section class="stats" aria-label="Pool capacity">
+          <article>
+            <span>CI machines</span><strong id="machines">—</strong
+            ><small id="quota"></small>
+          </article>
+          <article>
+            <span>Running jobs</span><strong id="busy">—</strong
+            ><small>From GitHub runner state</small>
+          </article>
+          <article>
+            <span>Ready runners</span><strong id="idle">—</strong
+            ><small>Online and idle</small>
+          </article>
+          <article>
+            <span>Queued jobs</span><strong id="queued">—</strong
+            ><small>In the fetched recent runs</small>
+          </article>
+        </section>
+        <section id="migration" class="notice" hidden>
+          <div>
+            <strong>CI migration awaits merge</strong>
+            <p id="migration-detail"></p>
+          </div>
+          <a id="pr" class="button" target="_blank" rel="noreferrer"
+            >Review PR ↗</a
+          >
+        </section>
+        <div class="section-heading">
+          <div>
+            <h2>Runner pool</h2>
+            <p>VM state and GitHub availability are separate observations.</p>
+          </div>
+          <code id="pool-label"></code>
+        </div>
+        <section
+          id="members"
+          class="members"
+          aria-label="Runner pool"
+        ></section>
+        <section class="jobs-section">
+          <div class="section-heading">
+            <div>
+              <h2>Recent jobs</h2>
+              <p id="jobs-hint">Latest fetched CI runs. Eight jobs per page.</p>
+            </div>
+            <span id="job-count" class="muted"></span>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Job</th>
+                  <th>State</th>
+                  <th>Runner</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="jobs"></tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <span id="page"></span>
+            <div>
+              <button id="previous">← Previous</button
+              ><button id="next">Next →</button>
+            </div>
+          </div>
+        </section>
+        <section class="maintain">
+          <div>
+            <h2>Make a change from your terminal.</h2>
+            <p>
+              The dashboard stays read-only. Existing provider sessions power
+              the CLI.
+            </p>
+          </div>
+          <div class="commands">
+            <code>boxci pool add --count 1</code><code>boxci doctor</code>
+          </div>
+        </section>
+        <footer>
+          <span id="credential"></span
+          ><span
+            >Provider polling never wakes machines · Refreshes every 30s</span
+          >
+        </footer>
+      </div>
+    </main>
+  </body>
+</html>

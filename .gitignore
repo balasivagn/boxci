@@ -1,0 +1,17 @@
+node_modules/
+.orca-scratch/
+dist/
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+.DS_Store
+coverage/
+__pycache__/
+*.py[cod]
+
+# Local launch copy and social drafts
+/docs/LAUNCH*.md
+/drafts/
+/posts/

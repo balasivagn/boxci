@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "BoxCI runtime architecture",
+    "locale": "en",
+    "output": "docs/architecture/boxci.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "operator",
+      "type": "external",
+      "label": "Developer",
+      "sublabel": "Terminal",
+      "pos": [40, 60],
+      "size": [150, 64]
+    },
+    {
+      "id": "cli",
+      "type": "backend",
+      "label": "BoxCI CLI",
+      "sublabel": "Engine + official adapters",
+      "pos": [330, 60],
+      "size": [200, 80]
+    },
+    {
+      "id": "repository",
+      "type": "cloud",
+      "label": "GitHub repository",
+      "sublabel": "Workflow PR + secret + pool",
+      "pos": [760, 60],
+      "size": [220, 80]
+    },
+    {
+      "id": "record",
+      "type": "database",
+      "label": "Private project record",
+      "sublabel": "Local JSON; no secret values",
+      "pos": [330, 280],
+      "size": [200, 80]
+    },
+    {
+      "id": "dashboard",
+      "type": "frontend",
+      "label": "Optional dashboard",
+      "sublabel": "Loopback + session; read-only",
+      "pos": [40, 280],
+      "size": [190, 80]
+    },
+    {
+      "id": "wake",
+      "type": "backend",
+      "label": "Hosted wake job",
+      "sublabel": "Inline Python; no PR checkout",
+      "pos": [760, 280],
+      "size": [220, 80]
+    },
+    {
+      "id": "pool",
+      "type": "backend",
+      "label": "InstaBox VM pool",
+      "sublabel": "Persistent runners; idle suspend",
+      "pos": [330, 530],
+      "size": [200, 80]
+    },
+    {
+      "id": "build",
+      "type": "backend",
+      "label": "GitHub build job",
+      "sublabel": "Dynamic runs-on labels",
+      "pos": [760, 530],
+      "size": [220, 80]
+    },
+    {
+      "id": "fallback",
+      "type": "cloud",
+      "label": "Hosted Ubuntu",
+      "sublabel": "Fork PR or wake failure",
+      "pos": [760, 760],
+      "size": [220, 70]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "GitHub Actions / repository",
+      "wraps": ["repository", "wake", "build", "fallback"],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    {
+      "id": "review",
+      "from": "operator",
+      "to": "cli",
+      "label": "review + approve",
+      "variant": "emphasis"
+    },
+    {
+      "id": "configure",
+      "from": "cli",
+      "to": "repository",
+      "label": "gh: configure + open PR",
+      "variant": "security"
+    },
+    {
+      "id": "save",
+      "from": "cli",
+      "to": "record",
+      "label": "read / checkpoint"
+    },
+    {
+      "id": "passive",
+      "from": "dashboard",
+      "to": "cli",
+      "label": "passive status",
+      "variant": "dashed"
+    },
+    {
+      "id": "event",
+      "from": "repository",
+      "to": "wake",
+      "label": "PR / manual event"
+    },
+    {
+      "id": "setup",
+      "from": "cli",
+      "to": "pool",
+      "label": "approved setup",
+      "variant": "security"
+    },
+    {
+      "id": "resume",
+      "from": "wake",
+      "to": "pool",
+      "label": "trusted: wake + check",
+      "variant": "security"
+    },
+    {
+      "id": "route",
+      "from": "wake",
+      "to": "build",
+      "label": "emit runner labels",
+      "variant": "emphasis"
+    },
+    {
+      "id": "schedule",
+      "from": "build",
+      "to": "pool",
+      "label": "all services ready",
+      "variant": "emphasis"
+    },
+    {
+      "id": "fallback-route",
+      "from": "build",
+      "to": "fallback",
+      "label": "fork / wake failure",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Setup stays local",
+      "items": [
+        "Official InstaBox + GitHub sign-ins; account, VM and dedicated-label checks before changes.",
+        "CLI installs the runner service, writes the pool variable and CI secret, and opens a workflow PR."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "CI runs independently",
+      "items": [
+        "Hosted wake uses Python standard-library HTTP calls; it does not need this CLI or a running dashboard.",
+        "Every reviewed VM must be ready; GitHub then assigns work by shared runner labels."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Boundaries that matter",
+      "items": [
+        "Status and dashboard read APIs without guest execution or VM resume.",
+        "Service readiness does not prove GitHub connectivity; fallback cannot rescue an already queued job."
+      ]
+    }
+  ]
+}
