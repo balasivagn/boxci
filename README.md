@@ -9,7 +9,7 @@
 [![npm version](https://img.shields.io/npm/v/@balasivagn/boxci.svg)](https://www.npmjs.com/package/@balasivagn/boxci)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
-[Quick start](#quick-start) · [How it works](#how-it-works) · [Commands](#commands) · [Migrate jobs](#move-existing-jobs-onto-the-pool) · [Good to know](#good-to-know) · [Docs](#docs)
+[Quick start](#quick-start) · [How it works](#how-it-works) · [Commands](#commands) · [Migrate jobs](#move-existing-jobs-onto-the-pool) · [Agent skill](#let-your-coding-agent-do-the-migration) · [Good to know](#good-to-know) · [Docs](#docs)
 
 </div>
 
@@ -21,6 +21,8 @@ Hosted minutes run out. A spare machine as a runner turns into a queue the momen
 
 **BoxCI turns InstaBox VMs into dedicated GitHub Actions runners for your repository.** One command plans the setup, one PR wires up the workflow, and your jobs run on machines you control.
 
+**Already have CI?** `boxci migrate` moves your existing jobs onto the pool, Blacksmith or `ubuntu-latest` alike, as a local diff you review. It ships with an agent skill, so your coding agent can do the migration with you.
+
 ## How it works in 3 steps
 
 |       | Step                    | What happens                                                                                                                                                               |
@@ -31,10 +33,11 @@ Hosted minutes run out. A spare machine as a runner turns into a queue the momen
 
 ## Why BoxCI
 
+- **Bring your existing CI.** `boxci migrate` retargets the jobs you already have (Blacksmith `runs-on` labels, for example) in one command, as a local diff you review and commit.
+- **Agent-ready.** The bundled [`boxci-migrate` skill](skills/boxci-migrate/SKILL.md) teaches your coding agent to drive `boxci migrate` instead of hand-editing YAML.
 - **Reviewable from start to finish.** A dry run shows exactly what will be created. The real run ends in a PR, not a surprise.
 - **Nothing extra to keep running.** No keepalive, no webhook server, no BoxCI account. The wake step lives inside GitHub Actions.
 - **Close your laptop after setup.** CI wakes the pool on its own. The CLI and dashboard are only for you.
-- **Bring your existing CI.** `boxci migrate` retargets jobs you already have (Blacksmith `runs-on` labels, for example) as a local diff you review and commit.
 - **A dashboard that watches without touching.** `boxci dashboard` is local, authenticated and read-only. It never wakes a VM.
 - **Hosted fallback built in.** Fork PRs, or a pool that is not fully ready, run on hosted Ubuntu instead. Fork code never receives your provider key.
 
@@ -156,7 +159,11 @@ needs: boxci-wake
 runs-on: ${{ fromJSON(needs.boxci-wake.outputs.runner) }}
 ```
 
-It edits files locally and pushes nothing. Review `git diff`, then commit and open a PR yourself. Working with a coding agent? Point it at the [migration skill](skills/boxci-migrate/SKILL.md).
+It edits files locally and pushes nothing. Review `git diff`, then commit and open a PR yourself.
+
+### Let your coding agent do the migration
+
+BoxCI ships an agent skill at [`skills/boxci-migrate/SKILL.md`](skills/boxci-migrate/SKILL.md), included in the npm package too. Point your coding agent at it and ask in plain words, for example "move our Blacksmith test jobs onto BoxCI". The skill tells the agent to map your request to `boxci migrate --match` or `--jobs`, let you approve the plan, and leave the diff for your review rather than hand-editing workflow files. Migration itself is deterministic and needs no model.
 
 <details>
 <summary>What migration does and does not change</summary>
