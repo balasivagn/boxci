@@ -1,6 +1,6 @@
 # Operations and troubleshooting
 
-Commands here assume `boxci` is available through the source function or a packed installation, and you are in the target repository checkout. Otherwise add `--repo owner/repository`; migration still requires that repository's checkout. See [installation and setup](../README.md#first-successful-ci-run).
+Commands here assume `boxci` is available through the GitHub installation or a locally packed installation, and you are in the target repository checkout. Otherwise add `--repo owner/repository`; migration still requires that repository's checkout. See [installation and setup](../README.md#first-successful-ci-run).
 
 ## Check the pool
 
@@ -76,7 +76,7 @@ The wake helper checks active runner services, not GitHub connectivity. Hosted f
 
 | Problem                                                                | Action                                                                                                                                                                                                                                                                                             |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `boxci: command not found`                                             | Define the source function in this terminal, or put your npm global executable directory on `PATH` after installing the tarball.                                                                                                                                                                   |
+| `boxci: command not found`                                             | Install the CLI from GitHub, then put your npm global executable directory on `PATH`. See the README for the user-owned prefix option.                                                                                                                                                             |
 | Cannot clone the candidate                                             | Check the public repository URL and GitHub connectivity. The npm package is not published; use the source checkout or a local tarball.                                                                                                                                                             |
 | Sign-in is needed in automation                                        | Run `boxci init` interactively first. `--yes` skips plan confirmation, not service authentication.                                                                                                                                                                                                 |
 | Account changed                                                        | Sign back into the account named by the project record. BoxCI refuses mutations across identities. Check `INSTABOX_API_KEY` if set as well as CLI sign-in.                                                                                                                                         |

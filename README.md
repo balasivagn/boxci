@@ -19,24 +19,25 @@ The commands below use a POSIX shell. Linux/Windows bootstrap and fresh-account 
 
 ## First successful CI run
 
-### 1. Make the candidate CLI available
+### 1. Install the CLI
 
-Clone the public source repository:
+Install directly from the public GitHub repository:
 
 ```sh
-git clone https://github.com/balasivagn/boxci.git
-cd boxci
-npm ci
-BOXCI_SOURCE="$PWD"
-boxci() {
-  node "$BOXCI_SOURCE/bin/boxci.js" "$@"
-}
+npm install --global https://github.com/balasivagn/boxci/archive/refs/heads/main.tar.gz
 boxci --help
 ```
 
-This defines `boxci` as a shell function for this terminal session, including after changing directories. In a new terminal, set `BOXCI_SOURCE` to the absolute path of this clone and define the function again. No npm publication is required.
+This downloads the current `main` snapshot and installs the CLI with its dependencies. No manual clone, pack step or npm publication is required. Run the same install command to update. To pin a reviewed snapshot, replace `refs/heads/main` in the URL with its commit SHA.
 
-Alternatively, [install a local packed candidate](#install-a-packed-candidate).
+Ensure npm's global executable directory is on `PATH`. For a user-owned prefix, use:
+
+```sh
+npm install --global --prefix "$HOME/.local" https://github.com/balasivagn/boxci/archive/refs/heads/main.tar.gz
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+For source development, see [Develop](#develop), or [install a locally packed candidate](#install-a-packed-candidate). The registry command `npm install --global @balasivagn/boxci` will become available after a separate npm release.
 
 ### 2. Choose your workflow path and review setup
 
@@ -155,11 +156,13 @@ npm install --global ./dist/balasivagn-boxci-0.1.0.tgz
 boxci --help
 ```
 
-Ensure your npm global executable directory is on `PATH`. If you prefer no global installation, use the source function above. The package remains private/unpublished; a local tarball installation does not publish it.
+Ensure your npm global executable directory is on `PATH`. The package remains unpublished on npm; a local tarball installation does not publish it.
 
 ## Develop
 
 ```sh
+git clone https://github.com/balasivagn/boxci.git
+cd boxci
 npm ci
 npm test
 python3 -m unittest discover -s ci/tests
