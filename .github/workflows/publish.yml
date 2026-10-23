@@ -44,7 +44,9 @@ jobs:
       - run: npm pack --dry-run
       - name: Validate publishing without uploading
         if: github.event_name == 'workflow_dispatch'
-        run: npm publish --dry-run --access public
+        run: |
+          npm version prerelease --preid "validation.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}" --no-git-tag-version --ignore-scripts
+          npm publish --dry-run --access public --tag validation
       - name: Publish release using npm trusted publishing
         if: github.event_name == 'release'
         run: npm publish --access public

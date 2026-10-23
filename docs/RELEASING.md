@@ -18,7 +18,7 @@ The npm account owner completes any required 2FA in npm. No `NPM_TOKEN` or `NODE
 
 ## Validate without publishing
 
-Open [Actions → Publish to npm](https://github.com/balasivagn/boxci/actions/workflows/publish.yml), choose **Run workflow**, and select the branch to validate. This checks package identity, formatting, JavaScript/Python tests and package contents, then performs a dry-run publish. It does not validate the npm trust connection; that exchange happens during a real publish.
+Open [Actions → Publish to npm](https://github.com/balasivagn/boxci/actions/workflows/publish.yml), choose **Run workflow**, and select the branch to validate. This checks package identity, formatting, JavaScript/Python tests and package contents, then performs a dry-run publish. Only this manual path assigns a temporary `validation.<run-id>.<attempt>` prerelease version inside the disposable CI checkout so npm will accept a preview even when the source version is already published. Nothing is uploaded or tagged in Git. It does not validate the npm trust connection; that exchange happens during a real publish.
 
 ## Publish a reviewed version
 
