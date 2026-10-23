@@ -47,11 +47,13 @@ export class Terminal {
   plan(p) {
     this.finish();
     const saved = p.pool.length;
-    const mode = p.incomplete
-      ? "Resume saved setup"
-      : saved
-        ? "Existing runner pool"
-        : "New runner setup";
+    const mode = p.already_configured
+      ? "Already configured"
+      : p.incomplete
+        ? "Resume saved setup"
+        : saved
+          ? "Existing runner pool"
+          : "New runner setup";
     const lines = [
       "",
       this.paint("bold", `BoxCI v${version} · ${mode}`),
@@ -81,7 +83,13 @@ export class Terminal {
       );
     if (p.command)
       lines.push(`  ${this.paint("dim", "Test      ")}  ${p.command}`);
-    lines.push("", this.paint("bold", "Planned changes"));
+    lines.push(
+      "",
+      this.paint(
+        "bold",
+        p.already_configured ? "Verified setup" : "Planned changes",
+      ),
+    );
     for (const action of p.actions) {
       const value = this.wrap(action, "  • ");
       lines.push(

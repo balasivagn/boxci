@@ -79,6 +79,26 @@ export class Workspace {
       after: preserveExisting && before !== null ? before : source,
     };
   }
+  async pending(edit) {
+    await this.validate(edit);
+    return !!execFileSync(
+      "git",
+      [
+        "status",
+        "--porcelain",
+        "--untracked-files=all",
+        "--ignored",
+        "--",
+        edit.relPath,
+      ],
+      {
+        cwd: edit.root,
+        env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    ).trim();
+  }
   async validate(edit) {
     if ((await this.root(edit.repo, edit.root)) !== edit.root)
       throw new Error("Repository checkout changed after review.");

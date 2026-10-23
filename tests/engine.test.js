@@ -20,6 +20,9 @@ function fixture() {
     calls: [],
     keys: 0,
     keyRecords: [],
+    saves: 0,
+    workflowWrites: 0,
+    workflowPending: true,
     prs: [],
     failCompletion: false,
     failSecret: false,
@@ -33,6 +36,7 @@ function fixture() {
       return archiveFileFor(p);
     },
     saveProject: async (p) => {
+      db.saves++;
       if (db.failCompletion && p.status === "ready_to_commit")
         throw new Error("completion response lost");
       db.project = structuredClone(p);
@@ -57,7 +61,12 @@ function fixture() {
     },
     apply: async (edit) => {
       await workspace.validate(edit);
+      db.workflowWrites++;
       db.localFiles.set(edit.relPath, edit.after);
+    },
+    pending: async (edit) => {
+      await workspace.validate(edit);
+      return db.workflowPending;
     },
   };
   const provider = {
@@ -320,6 +329,144 @@ test("local workflow readiness uses the default branch, and status never wakes V
   assert.equal((await app.status(options)).workflow_published, true);
   assert.equal((await app.doctor(options)).ready, true);
   assert.equal((await app.ciRun(options)).ref, "main");
+});
+test("repeat init is prompt-free and makes no changes before or after committing and publishing the workflow", async () => {
+  for (const phase of ["uncommitted", "committed", "published"]) {
+    const { app, db } = fixture();
+    await app.init(options);
+    const path = db.project.workflow_path;
+    db.localFiles.set(
+      path,
+      db.localFiles.get(path) + "\n# Application customizations\n",
+    );
+    db.workflowPending = phase === "uncommitted";
+    if (phase === "published")
+      db.files.set("main:" + path, db.localFiles.get(path));
+    db.machines[0].state = "suspended";
+    for (const char of "bcde")
+      db.machines.push({
+        id: id(char),
+        name: "unrelated-" + char,
+        state: "suspended",
+      });
+    const before = structuredClone(db);
+    db.calls = [];
+    const result = await app.init({ ...options, yes: false }, () => {
+      assert.fail("unchanged setup must not prompt for approval");
+    });
+    assert.equal(result.already_configured, true, phase);
+    assert.equal(result.workflow_pending, db.workflowPending);
+    assert.match(
+      result.message,
+      /^Already configured\. No setup changes needed\./,
+    );
+    assert.match(
+      result.message,
+      phase === "uncommitted"
+        ? /Workflow has local changes/
+        : /Workflow is committed locally/,
+    );
+    assert.equal(db.saves, before.saves);
+    assert.equal(db.workflowWrites, before.workflowWrites);
+    assert.deepEqual(db.project, before.project);
+    assert.deepEqual(db.localFiles, before.localFiles);
+    assert.deepEqual(db.files, before.files);
+    assert.deepEqual(db.machines, before.machines);
+    assert.deepEqual(db.runners, before.runners);
+    assert.deepEqual(db.variables, before.variables);
+    assert.deepEqual(db.secrets, before.secrets);
+    assert.equal(db.keys, before.keys);
+    assert.ok(db.calls.every((call) => call === "GET"));
+  }
+});
+test("prompt-free repeat init still rejects account, checkpoint and workflow changes during review", async () => {
+  for (const changed of ["identity", "project", "workflow"]) {
+    const { app, db, storage } = fixture();
+    await app.init(options);
+    const saves = db.saves;
+    storage.locked = async (_, fn) => {
+      if (changed === "identity") db.identity.userId++;
+      else if (changed === "project")
+        db.project.command = "concurrently changed command";
+      else
+        db.localFiles.set(
+          db.project.workflow_path,
+          "concurrently changed workflow",
+        );
+      return fn();
+    };
+    db.calls = [];
+    await assert.rejects(app.init({ ...options, yes: false }), /changed/);
+    assert.equal(db.saves, saves);
+    assert.equal(db.machines.length, 1);
+    assert.equal(db.runners.length, 1);
+    assert.ok(db.calls.every((call) => call === "GET"));
+  }
+});
+test("repeat init accepts equivalent manifest formatting and pool order", async () => {
+  const { app, db } = fixture();
+  await app.init({ ...options, count: 3 });
+  const reordered = [...db.project.pool]
+    .reverse()
+    .map((member) => Object.fromEntries(Object.entries(member).reverse()));
+  db.variables.set(
+    db.project.pool_variable,
+    JSON.stringify(reordered, null, 2),
+  );
+  const result = await app.init({ ...options, yes: false }, () =>
+    assert.fail("equivalent manifest must not prompt"),
+  );
+  assert.equal(result.already_configured, true);
+  assert.equal(db.machines.length, 3);
+  assert.equal(db.runners.length, 3);
+});
+test("a missing local workflow still requires approval and restores only the file using the existing pool", async () => {
+  const { app, db } = fixture();
+  await app.init(options);
+  db.localFiles.delete(db.project.workflow_path);
+  const before = structuredClone(db);
+  db.calls = [];
+  await assert.rejects(
+    app.init({ ...options, yes: false }, async () => false),
+    /cancelled/,
+  );
+  assert.equal(db.localFiles.size, 0);
+  assert.equal(db.saves, before.saves);
+  assert.equal((await app.plan(options)).already_configured, undefined);
+  await app.init(options);
+  assert.ok(db.localFiles.has(db.project.workflow_path));
+  assert.deepEqual(db.machines, before.machines);
+  assert.deepEqual(db.runners, before.runners);
+  assert.equal(db.keys, before.keys);
+  assert.ok(db.calls.every((call) => call === "GET"));
+});
+test("repeat init cannot report configured when the saved secret or pool variable is missing or different", async () => {
+  for (const missing of ["secret", "variable", "different", "invalid"]) {
+    const { app, db } = fixture();
+    await app.init(options);
+    if (missing === "secret") db.secrets.clear();
+    else if (missing === "variable") db.variables.clear();
+    else
+      db.variables.set(
+        db.project.pool_variable,
+        missing === "invalid" ? "invalid" : "[]",
+      );
+    const before = structuredClone(db);
+    db.calls = [];
+    await assert.rejects(
+      app.init(options),
+      missing === "secret"
+        ? /secret.*missing.*auth renew/
+        : /variable.*missing or differs/,
+    );
+    assert.deepEqual(db.project, before.project);
+    assert.equal(db.saves, before.saves);
+    assert.equal(db.workflowWrites, before.workflowWrites);
+    assert.equal(db.keys, before.keys);
+    assert.deepEqual(db.machines, before.machines);
+    assert.deepEqual(db.runners, before.runners);
+    assert.ok(db.calls.every((call) => call === "GET"));
+  }
 });
 test("saved three-VM project is adopted without VM, credential or GitHub writes", async () => {
   const f = fixture();

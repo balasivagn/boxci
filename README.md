@@ -115,6 +115,7 @@ Open the **BoxCI** run in GitHub Actions and watch your first job land on your o
   ```
 
 - **Interrupted?** Rerun `boxci init`. It resumes from saved checkpoints.
+- **Already set up?** Rerunning `boxci init` verifies and reuses the saved VM and runner. If its workflow is already present, it reports “Already configured” without a setup prompt or changes. It preserves your workflow edits and distinguishes local changes from a committed file; use `boxci doctor` to check readiness on GitHub. A missing local workflow is restored only after approval.
 - **HTTPS certificates:** BoxCI automatically includes your system's trusted certificates; no `NODE_OPTIONS` is needed. See [certificate trust and setup recovery](docs/OPERATIONS.md#https-certificate-trust-and-interrupted-setup).
 - **Reusing an existing pool?** Start with a dry run and read [pool discovery and recovery](docs/CONFIGURATION.md#pool-discovery-and-recovery), especially on a new machine.
 
@@ -276,7 +277,7 @@ Runner service readiness does not prove GitHub connectivity. Fallback is chosen 
 
 <br>
 
-- BoxCI is at **v0.2.1**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
+- BoxCI is at **v0.2.2**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
 - Commands in this README use a POSIX shell. Native Linux and Windows bootstrap and fresh-account authentication still need verification. Details are in [validation coverage](docs/VALIDATION.md).
 - There is no automatic uninstall. Cleanup steps are in [stop using BoxCI](docs/OPERATIONS.md#stop-using-boxci).
 
@@ -330,7 +331,7 @@ npm pack --dry-run
   ```sh
   mkdir -p dist
   npm run pack:local
-  npm install --global ./dist/balasivagn-boxci-0.2.1.tgz
+  npm install --global ./dist/balasivagn-boxci-0.2.2.tgz
   ```
 
 - More: [developer experience contract](docs/DEVELOPER_EXPERIENCE.md) · [design tokens](docs/DESIGN.md)

@@ -65,3 +65,16 @@ test("a failed step stops its progress animation and reports failure", () => {
   assert.match(c.output(), /✗/);
   assert.doesNotMatch(c.output(), /✓/);
 });
+test("unchanged setup shows a verified summary instead of planned changes", () => {
+  const c = capture();
+  c.terminal.plan({
+    ...plan,
+    incomplete: false,
+    already_configured: true,
+    count: 0,
+    actions: ["No setup changes needed."],
+  });
+  assert.match(c.output(), /Already configured/);
+  assert.match(c.output(), /Verified setup/);
+  assert.doesNotMatch(c.output(), /Planned changes|Resume saved setup/);
+});

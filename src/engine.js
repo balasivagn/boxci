@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { Provider } from "./provider.js";
 import { GitHub } from "./github.js";
 import * as store from "./store.js";
@@ -25,6 +26,16 @@ const labelPattern = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/;
 const generic = new Set(["self-hosted", "linux", "x64", "arm64"]);
 const completeSetup = (project) =>
   ["awaiting_merge", "merged", "ready_to_commit"].includes(project.status);
+function samePool(raw, pool) {
+  try {
+    const saved = JSON.parse(raw);
+    const sorted = (members) =>
+      [...members].sort((a, b) => a.machine_id.localeCompare(b.machine_id));
+    return isDeepStrictEqual(sorted(saved), sorted(pool));
+  } catch {
+    return false;
+  }
+}
 export function validatePool(pool, machines, runners, label) {
   if (!Array.isArray(pool) || !pool.length || pool.length > 5)
     throw new Error("Pool must have one to five distinct VMs.");
@@ -445,6 +456,22 @@ export class App {
         result.actions.push(
           "Keep the existing integration and leave its workflow available locally for review. Existing branches and PRs are preserved.",
         );
+      if (result.adopt_only) {
+        if (!secretExists)
+          throw new Error(
+            `The saved Actions secret ${secret} is missing. Run boxci auth renew to restore it using the existing pool. No setup changes were made.`,
+          );
+        if (!samePool(importedVariable, pool))
+          throw new Error(
+            `Actions variable ${poolVariable} is missing or differs from the saved pool. Inspect the repository's Actions variables before retrying. No setup changes were made.`,
+          );
+        if (result.workflow_edit.before === result.workflow_edit.after) {
+          result.already_configured = true;
+          result.actions = [
+            "VM and runner verified; Actions secret exists and pool variable matches. No setup changes needed.",
+          ];
+        }
+      }
     }
     return result;
   }
@@ -452,7 +479,7 @@ export class App {
     const plan = await this.plan(options);
     this.emit({ type: "plan", plan });
     if (options.dryRun) return plan;
-    if (!options.yes && !(await approve(plan)))
+    if (!plan.already_configured && !options.yes && !(await approve(plan)))
       throw new Error(
         "Setup cancelled. No VMs, runners, keys or workflow changes were made.",
       );
@@ -471,6 +498,21 @@ export class App {
         );
       const { project_revision, workflow_edit, ...setup } = plan;
       if (workflow_edit) await this.workspace.validate(workflow_edit);
+      if (plan.already_configured) {
+        const pending = await this.workspace.pending(workflow_edit);
+        const result = {
+          ...current,
+          already_configured: true,
+          workflow_pending: pending,
+          message:
+            "Already configured. No setup changes needed.\n" +
+            (pending
+              ? "Workflow has local changes. Review git diff, commit, and push through your normal process."
+              : "Workflow is committed locally. Run boxci doctor to check readiness on GitHub."),
+        };
+        this.emit({ type: "adopted", project: result });
+        return result;
+      }
       if (plan.adopt_only) {
         if (workflow_edit) await this.workspace.apply(workflow_edit);
         const adopted = { ...current, ...setup };

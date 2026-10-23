@@ -60,6 +60,35 @@ test("wrong repositories, changed remotes and edits after review cannot write wo
   await assert.rejects(workspace.apply(edit), /changed after review/);
   assert.equal(await readFile(join(root, path), "utf8"), "my edits");
 });
+test("workflow status distinguishes untracked, staged, committed and edited files without changing Git", async (t) => {
+  const { root, workspace, git } = await fixture(t);
+  await workspace.apply(
+    await workspace.review("acme/project", path, "name: BoxCI\n"),
+  );
+  const review = () =>
+    workspace.review("acme/project", path, "unused", {
+      preserveExisting: true,
+    });
+  assert.equal(await workspace.pending(await review()), true);
+  git("add", path);
+  assert.equal(await workspace.pending(await review()), true);
+  git(
+    "-c",
+    "user.name=BoxCI Test",
+    "-c",
+    "user.email=test@example.invalid",
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "-m",
+    "Add workflow",
+  );
+  assert.equal(await workspace.pending(await review()), false);
+  await writeFile(join(root, "unrelated.txt"), "Unrelated local changes\n");
+  assert.equal(await workspace.pending(await review()), false);
+  await writeFile(join(root, path), "name: Customized BoxCI\n");
+  assert.equal(await workspace.pending(await review()), true);
+});
 test("symlinked workflow directories and path traversal are refused", async (t) => {
   const { root, workspace } = await fixture(t);
   const other = join(root, "other");

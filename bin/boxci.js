@@ -221,12 +221,15 @@ try {
       console.log(result.message || "Migration applied.");
     else
       console.log(
-        result.workflow_delivery === "local"
-          ? result.message ||
+        result.already_configured
+          ? output.paint("green", "✓ Already configured.") +
+              result.message.slice("Already configured.".length)
+          : result.workflow_delivery === "local"
+            ? result.message ||
               "Workflow changes are local. Review git diff, commit, and push."
-          : result.pr_url
-            ? `\n${output.paint("green", "✓ Ready:")} ${result.pr_url}\nboxci status · boxci migrate · boxci dashboard`
-            : result.message || "Done.",
+            : result.pr_url
+              ? `\n${output.paint("green", "✓ Ready:")} ${result.pr_url}\nboxci status · boxci migrate · boxci dashboard`
+              : result.message || "Done.",
       );
   }
 } catch (error) {
