@@ -46,10 +46,10 @@ Hosted minutes run out. A spare machine as a runner turns into a queue the momen
 Open your app's checkout in any coding agent with terminal access and paste:
 
 ```text
-Set up BoxCI in this repo using https://github.com/balasivagn/boxci. Install its CLI from GitHub source, reuse my current GitHub/InstaBox sign-ins, and show me `boxci init --dry-run` for approval before applying. Then complete setup, migrate compatible existing Linux x64 CI jobs with `boxci migrate`, preserve existing pools, verify with `boxci doctor` and `boxci status`, and leave workflow changes in a PR for review.
+Set up BoxCI in this repo using https://github.com/balasivagn/boxci. Install its CLI with `npm install -g @balasivagn/boxci`, reuse my current GitHub/InstaBox sign-ins, and show me `boxci init --dry-run` for approval before applying. Then complete setup, migrate compatible existing Linux x64 CI jobs with `boxci migrate`, preserve existing pools, verify with `boxci doctor` and `boxci status`, and leave workflow changes in a PR for review.
 ```
 
-Your agent handles the commands; you complete any official browser sign-in and approve the setup plan. The prompt uses GitHub source to include fixes awaiting the next npm release.
+Your agent handles the commands; you complete any official browser sign-in and approve the setup plan.
 
 ## Quick start
 
@@ -290,6 +290,7 @@ BoxCI is an independent open-source integration. It is not built or endorsed by 
 | [Operations](docs/OPERATIONS.md)                 | Status, renewal, adding capacity, recovery, troubleshooting, cleanup |
 | [Architecture](docs/ARCHITECTURE.md)             | Setup, CI and monitoring paths, with a source map                    |
 | [Validation](docs/VALIDATION.md)                 | What is tested today and what still needs verification               |
+| [Releasing](docs/RELEASING.md)                   | npm trusted publishing and reviewed GitHub releases                  |
 | [Security](SECURITY.md)                          | Credential scope and isolation limits                                |
 | [Migration skill](skills/boxci-migrate/SKILL.md) | Agent-assisted workflow migration                                    |
 

@@ -1,0 +1,50 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.repository == 'balasivagn/boxci' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.release.prerelease == false && github.event.release.draft == false))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Check package identity and release version
+        run: node .github/scripts/check-release.mjs
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+      - run: npm --version
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - run: npm test
+      - run: python3 -m unittest discover -s ci/tests
+      - run: npm pack --dry-run
+      - name: Validate publishing without uploading
+        if: github.event_name == 'workflow_dispatch'
+        run: npm publish --dry-run --access public
+      - name: Publish release using npm trusted publishing
+        if: github.event_name == 'release'
+        run: npm publish --access public

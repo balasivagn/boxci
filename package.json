@@ -11,10 +11,10 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "prettier --check bin src web tests docs README.md package.json .github/workflows/check.yml",
+    "check": "prettier --check bin src web tests docs README.md package.json .github",
     "start": "node bin/boxci.js dashboard",
     "pack:local": "npm pack --pack-destination dist",
-    "format": "prettier --write bin src web tests docs README.md package.json .github/workflows/check.yml"
+    "format": "prettier --write bin src web tests docs README.md package.json .github"
   },
   "files": [
     "bin",
@@ -32,6 +32,7 @@
     "docs/DESIGN.md",
     "docs/OPERATIONS.md",
     "docs/VALIDATION.md",
+    "docs/RELEASING.md",
     "skills",
     "SECURITY.md"
   ],
