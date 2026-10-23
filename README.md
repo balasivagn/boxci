@@ -115,6 +115,7 @@ Open the **BoxCI** run in GitHub Actions and watch your first job land on your o
   ```
 
 - **Interrupted?** Rerun `boxci init`. It resumes from saved checkpoints.
+- **HTTPS certificates:** BoxCI automatically includes your system's trusted certificates; no `NODE_OPTIONS` is needed. See [certificate trust and setup recovery](docs/OPERATIONS.md#https-certificate-trust-and-interrupted-setup).
 - **Reusing an existing pool?** Start with a dry run and read [pool discovery and recovery](docs/CONFIGURATION.md#pool-discovery-and-recovery), especially on a new machine.
 
 </details>
