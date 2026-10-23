@@ -5,6 +5,19 @@ on:
 permissions:
   contents: read
 jobs:
+  wake-helper:
+    uses: ./.github/workflows/boxci-wake.yml
+    with:
+      pool: "[]"
+      runner-label: boxci-test
+  wake-helper-output:
+    needs: wake-helper
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify secret-free hosted fallback through workflow output
+        env:
+          ROUTE: ${{ needs.wake-helper.outputs.runner }}
+        run: python3 -c 'import json,os; assert json.loads(os.environ["ROUTE"]) == ["ubuntu-24.04"]'
   test:
     runs-on: ubuntu-24.04
     strategy:

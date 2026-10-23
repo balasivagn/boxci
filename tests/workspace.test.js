@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Workspace } from "../src/workspace.js";
 import { buildMigratePlan, applyMigratePlan } from "../src/migrate.js";
+import { legacyWakeJobYaml, reusableWakeWorkflow } from "../src/wake.js";
 
 async function fixture(t) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "boxci-checkout-")));
@@ -123,4 +124,82 @@ test("migration checks all reviewed contents before writing any file and leaves 
   await applyMigratePlan(plan);
   assert.match(await readFile(first, "utf8"), /fromJSON/);
   assert.match(await readFile(second, "utf8"), /fromJSON/);
+  assert.doesNotMatch(
+    await readFile(first, "utf8"),
+    /python3|ThreadPoolExecutor/,
+  );
+  assert.equal(
+    await readFile(join(root, ".github/workflows/boxci-wake.yml"), "utf8"),
+    await reusableWakeWorkflow(),
+  );
+  assert.deepEqual(
+    (
+      await buildMigratePlan(
+        { repo: "acme/project", label: "dedicated-pool" },
+        { root },
+      )
+    ).edits,
+    [],
+  );
+  await rm(join(root, ".github/workflows/boxci-wake.yml"));
+  const repair = await buildMigratePlan(
+    { repo: "acme/project", label: "dedicated-pool" },
+    { root },
+  );
+  assert.deepEqual(
+    repair.edits.map((edit) => edit.relPath),
+    [".github/workflows/boxci-wake.yml"],
+  );
+  await applyMigratePlan(repair);
+  assert.equal(
+    await readFile(join(root, ".github/workflows/boxci-wake.yml"), "utf8"),
+    await reusableWakeWorkflow(),
+  );
+});
+test("migration extracts an already migrated inline job while preserving application steps and dependencies", async (t) => {
+  const { root } = await fixture(t);
+  const project = {
+    repo: "acme/project",
+    label: "dedicated-pool",
+    secret: "CUSTOM_KEY",
+    pool_variable: "CUSTOM_POOL",
+  };
+  const source =
+    "name: App\non:\n  pull_request:\njobs:\n" +
+    (await legacyWakeJobYaml(project)) +
+    "\n  test:\n    needs: [install, boxci-wake]\n    runs-on: ${{ fromJSON(needs.boxci-wake.outputs.runner) }}\n    steps:\n      - run: my custom test command\n";
+  await mkdir(join(root, ".github/workflows"), { recursive: true });
+  const target = join(root, ".github/workflows/ci.yml");
+  await writeFile(target, source);
+  const plan = await buildMigratePlan(project, { root });
+  assert.equal(plan.jobs.length, 0);
+  assert.equal(plan.edits.length, 2);
+  assert.equal(await readFile(target, "utf8"), source);
+  await applyMigratePlan(plan);
+  const result = await readFile(target, "utf8");
+  assert.ok(result.endsWith(source.slice(source.indexOf("  test:"))));
+  assert.match(result, /uses: \.\/\.github\/workflows\/boxci-wake.yml/);
+  assert.match(result, /vars.CUSTOM_POOL/);
+  assert.match(result, /secrets.CUSTOM_KEY/);
+  assert.doesNotMatch(result, /python3|ThreadPoolExecutor/);
+});
+test("migration refuses a conflicting helper before changing callers", async (t) => {
+  const { root } = await fixture(t);
+  await mkdir(join(root, ".github/workflows"), { recursive: true });
+  const target = join(root, ".github/workflows/ci.yml");
+  const source =
+    "jobs:\n  test:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hello\n";
+  await writeFile(target, source);
+  await writeFile(
+    join(root, ".github/workflows/boxci-wake.yml"),
+    "my custom helper",
+  );
+  await assert.rejects(
+    buildMigratePlan(
+      { repo: "acme/project", label: "pool", secret: "KEY" },
+      { root },
+    ),
+    /not overwritten/,
+  );
+  assert.equal(await readFile(target, "utf8"), source);
 });

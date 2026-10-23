@@ -5,6 +5,11 @@ import { App, validatePool, quotaPlan } from "../src/engine.js";
 import { Provider } from "../src/provider.js";
 import { redact } from "../src/process.js";
 import { archiveFileFor } from "../src/store.js";
+import {
+  legacyWakeJobYaml,
+  wakeJobYaml,
+  reusableWakeWorkflow,
+} from "../src/wake.js";
 const id = (char) => "m_" + char.repeat(26);
 function fixture() {
   const db = {
@@ -237,8 +242,11 @@ test("new setup creates a verified service runner, transfers the credential priv
   assert.deepEqual(JSON.parse(db.variables.get("BOXCI_POOL")), state.pool);
   const source = [...db.localFiles.values()][0];
   assert.match(source, /vars.BOXCI_POOL/);
-  assert.match(source, /ThreadPoolExecutor/);
-  assert.match(source, /head.repo.full_name == github.repository/);
+  assert.doesNotMatch(source, /ThreadPoolExecutor/);
+  assert.match(source, /uses: \.\/\.github\/workflows\/boxci-wake.yml/);
+  const helper = db.localFiles.get(".github/workflows/boxci-wake.yml");
+  assert.match(helper, /ThreadPoolExecutor/);
+  assert.match(helper, /head.repo.full_name == github.repository/);
   assert.ok(source.indexOf("actions/checkout") > source.indexOf("  build:"));
   assert.equal(JSON.stringify(db.project).includes("ibk_"), false);
   assert.equal(
@@ -326,6 +334,12 @@ test("local workflow readiness uses the default branch, and status never wakes V
     db.localFiles.get(db.project.workflow_path),
   );
   github.recent = async () => [];
+  assert.equal((await app.status(options)).workflow_published, false);
+  await assert.rejects(app.ciRun(options), /commit, and push/);
+  db.files.set(
+    "main:.github/workflows/boxci-wake.yml",
+    await reusableWakeWorkflow(),
+  );
   assert.equal((await app.status(options)).workflow_published, true);
   assert.equal((await app.doctor(options)).ready, true);
   assert.equal((await app.ciRun(options)).ref, "main");
@@ -430,7 +444,7 @@ test("a missing local workflow still requires approval and restores only the fil
     app.init({ ...options, yes: false }, async () => false),
     /cancelled/,
   );
-  assert.equal(db.localFiles.size, 0);
+  assert.equal(db.localFiles.size, 1);
   assert.equal(db.saves, before.saves);
   assert.equal((await app.plan(options)).already_configured, undefined);
   await app.init(options);
@@ -439,6 +453,88 @@ test("a missing local workflow still requires approval and restores only the fil
   assert.deepEqual(db.runners, before.runners);
   assert.equal(db.keys, before.keys);
   assert.ok(db.calls.every((call) => call === "GET"));
+});
+test("init upgrades only the generated inline wake block and repeat init never provisions again", async () => {
+  const { app, db } = fixture();
+  await app.init(options);
+  const state = db.project;
+  const caller = await wakeJobYaml(state);
+  const legacy =
+    db.localFiles
+      .get(state.workflow_path)
+      .replace(caller, await legacyWakeJobYaml(state)) +
+    "\n# My CI customizations\n";
+  db.localFiles.set(state.workflow_path, legacy);
+  db.localFiles.delete(".github/workflows/boxci-wake.yml");
+  const before = structuredClone(db);
+  const preview = await app.init({ ...options, dryRun: true });
+  assert.equal(preview.workflow_edits.length, 2);
+  assert.equal(preview.already_configured, undefined);
+  assert.equal(db.localFiles.get(state.workflow_path), legacy);
+  await assert.rejects(
+    app.init({ ...options, yes: false }, async () => false),
+    /cancelled/,
+  );
+  db.calls = [];
+  await app.init(options);
+  assert.equal(
+    db.localFiles.get(state.workflow_path),
+    legacy.replace(await legacyWakeJobYaml(state), caller),
+  );
+  assert.equal(
+    db.localFiles.get(".github/workflows/boxci-wake.yml"),
+    await reusableWakeWorkflow(),
+  );
+  const saved = structuredClone(db.project);
+  await app.init({ ...options, yes: false }, () =>
+    assert.fail("repeat must not prompt"),
+  );
+  assert.deepEqual(db.project, saved);
+  assert.deepEqual(db.machines, before.machines);
+  assert.deepEqual(db.runners, before.runners);
+  assert.equal(db.keys, before.keys);
+  assert.ok(db.calls.every((call) => call === "GET"));
+});
+test("helper conflicts or changes after approval block init before any setup mutation", async () => {
+  const { app, db } = fixture();
+  db.localFiles.set(".github/workflows/boxci-wake.yml", "my custom helper");
+  await assert.rejects(app.init(options), /conflict/);
+  assert.equal(db.machines.length, 0);
+  db.localFiles.clear();
+  await assert.rejects(
+    app.init({ ...options, yes: false }, async () => {
+      db.localFiles.set(".github/workflows/boxci-wake.yml", "concurrent edit");
+      return true;
+    }),
+    /changed after review/,
+  );
+  assert.equal(db.localFiles.has(".github/workflows/boxci.yml"), false);
+  assert.equal(db.machines.length, 0);
+});
+test("an interrupted setup with an old inline workflow resumes into the reusable helper without another runner", async () => {
+  const { app, db } = fixture();
+  db.failSecret = true;
+  await assert.rejects(app.init(options), /transfer failed/);
+  const state = db.project;
+  db.localFiles.set(
+    state.workflow_path,
+    db.localFiles
+      .get(state.workflow_path)
+      .replace(await wakeJobYaml(state), await legacyWakeJobYaml(state)),
+  );
+  db.localFiles.delete(".github/workflows/boxci-wake.yml");
+  db.failSecret = false;
+  db.calls = [];
+  await app.init(options);
+  assert.equal(db.machines.length, 1);
+  assert.equal(db.runners.length, 1);
+  assert.equal(db.calls.includes("create"), false);
+  assert.equal(db.calls.includes("exec"), false);
+  assert.doesNotMatch(db.localFiles.get(state.workflow_path), /python3/);
+  assert.equal(
+    db.localFiles.get(".github/workflows/boxci-wake.yml"),
+    await reusableWakeWorkflow(),
+  );
 });
 test("repeat init cannot report configured when the saved secret or pool variable is missing or different", async () => {
   for (const missing of ["secret", "variable", "different", "invalid"]) {
@@ -1137,6 +1233,12 @@ test("a recorded manifest remains authoritative when BOXCI_POOL also exists", as
   const { app, db, github } = fixture();
   await app.init(options);
   db.project.pool_variable = "CUSTOM_POOL";
+  db.localFiles.set(
+    db.project.workflow_path,
+    db.localFiles
+      .get(db.project.workflow_path)
+      .replace("vars.BOXCI_POOL", "vars.CUSTOM_POOL"),
+  );
   db.variables.set("CUSTOM_POOL", JSON.stringify(db.project.pool));
   db.variables.set("BOXCI_POOL", "unrelated manifest");
   const reads = [];

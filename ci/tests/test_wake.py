@@ -5,6 +5,8 @@ import unittest
 import tempfile
 import json
 import urllib.error
+import subprocess
+import os
 from unittest.mock import Mock, patch
 
 
@@ -14,6 +16,27 @@ spec = importlib.util.spec_from_file_location(
 wake = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(wake)
 MACHINE_ID = "m_" + "a" * 26
+
+
+class ReusableWorkflowTest(unittest.TestCase):
+    def test_generated_helper_keeps_fork_and_missing_secret_fallback_without_network(self):
+        root = Path(__file__).resolve().parents[2]
+        generated = subprocess.run(
+            ["node", "--input-type=module", "-e",
+             "import {reusableWakeWorkflow} from './src/wake.js'; process.stdout.write(await reusableWakeWorkflow());"],
+            cwd=root, text=True, capture_output=True, check=True).stdout
+        block = generated.split("python3 - <<'BOXCI_WAKE'\n", 1)[1].split("          BOXCI_WAKE", 1)[0]
+        code = "\n".join(line[10:] if line.startswith("          ") else line for line in block.splitlines())
+        for trusted, key in [("false", "fixture-key"), ("true", "")]:
+            with self.subTest(trusted=trusted), tempfile.NamedTemporaryFile() as output:
+                env = {**os.environ, "BOXCI_TRUSTED": trusted, "BOXCI_API_KEY": key,
+                       "BOXCI_POOL": json.dumps([{"machine_id": MACHINE_ID, "runner_name": "ci-01", "expected_name": "ci-01"}]),
+                       "BOXCI_RUNNER_LABEL": "dedicated-pool", "BOXCI_FALLBACK_LABEL": "ubuntu-24.04",
+                       "GITHUB_OUTPUT": output.name}
+                runner = "import sys; from unittest.mock import patch\nwith patch('urllib.request.build_opener', side_effect=AssertionError('Network forbidden')):\n exec(compile(sys.stdin.read(), '<generated-helper>', 'exec'), {'__name__':'__main__'})"
+                subprocess.run(["python3", "-c", runner], input=code, env=env,
+                               text=True, capture_output=True, check=True)
+                self.assertEqual(Path(output.name).read_text(), 'runner=["ubuntu-24.04"]\n')
 
 
 def machine(state="running", **extra):

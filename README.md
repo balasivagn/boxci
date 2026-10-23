@@ -73,7 +73,7 @@ boxci init
 
 Run setup in the application repository whose CI you want to change. You do not need to clone the BoxCI repository. Check the **Repository** line before approving: it is inferred from your current Git checkout.
 
-The dry run shows the account, repository, runner label, test command and every planned action. It creates no VMs, runners, keys or repository settings. `boxci init` asks you to approve that plan, then provisions the VM, installs the CI secret and pool variable, and writes the workflow locally. It does not create a Git branch, commit, push, or PR.
+The dry run shows the account, repository, runner label, test command and every planned action. It creates no VMs, runners, keys or repository settings. `boxci init` asks you to approve that plan, then provisions the VM, installs the CI secret and pool variable, and writes the application workflow and shared wake helper locally. It does not create a Git branch, commit, push, or PR.
 
 **3. Review, commit, and push the workflow changes, then run CI:**
 
@@ -115,7 +115,7 @@ Open the **BoxCI** run in GitHub Actions and watch your first job land on your o
   ```
 
 - **Interrupted?** Rerun `boxci init`. It resumes from saved checkpoints.
-- **Already set up?** Rerunning `boxci init` verifies and reuses the saved VM and runner. If its workflow is already present, it reports “Already configured” without a setup prompt or changes. It preserves your workflow edits and distinguishes local changes from a committed file; use `boxci doctor` to check readiness on GitHub. A missing local workflow is restored only after approval.
+- **Already set up?** Rerunning `boxci init` verifies and reuses the saved VM and runner. If its workflow files are already present, it reports “Already configured” without a setup prompt or changes. It preserves your workflow edits and distinguishes local changes from a committed file; use `boxci doctor` to check readiness on GitHub. A missing local workflow is restored only after approval.
 - **HTTPS certificates:** BoxCI automatically includes your system's trusted certificates; no `NODE_OPTIONS` is needed. See [certificate trust and setup recovery](docs/OPERATIONS.md#https-certificate-trust-and-interrupted-setup).
 - **Reusing an existing pool?** Start with a dry run and read [pool discovery and recovery](docs/CONFIGURATION.md#pool-discovery-and-recovery), especially on a new machine.
 
@@ -170,9 +170,24 @@ boxci migrate --match blacksmith --dry-run
 boxci migrate --match blacksmith
 ```
 
+Commit the helper and its callers together. Existing generated inline wake blocks can be extracted with `boxci init` (starter workflow) or `boxci migrate` (migrated workflows); the CLI shows local edits for approval and preserves application steps. Customized wake blocks and conflicting helper files require manual review. Rerunning these commands reuses the existing pool and helper.
+
 Or run `boxci migrate` with no flags to pick jobs interactively. Prefer explicit jobs? Use `--jobs file.yml:job,...`. To do it in one go, `boxci init --migrate-workflows` runs the same migration right after setup.
 
-Migration adds a hosted `boxci-wake` job and points the selected jobs at the pool:
+BoxCI keeps the wake implementation in `.github/workflows/boxci-wake.yml`, a local reusable workflow. Both `init` and `migrate` use the same helper. The application workflow contains only this short call, followed by your own jobs:
+
+```yaml
+jobs:
+  boxci-wake:
+    uses: ./.github/workflows/boxci-wake.yml
+    with:
+      pool: ${{ vars.BOXCI_POOL }}
+      runner-label: your-boxci-label
+    secrets:
+      api-key: ${{ secrets.BOXCI_API_KEY }}
+```
+
+Selected application jobs consume the helper’s output:
 
 ```yaml
 needs: boxci-wake
@@ -277,7 +292,7 @@ Runner service readiness does not prove GitHub connectivity. Fallback is chosen 
 
 <br>
 
-- BoxCI is at **v0.2.2**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
+- BoxCI is at **v0.3.0**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
 - Commands in this README use a POSIX shell. Native Linux and Windows bootstrap and fresh-account authentication still need verification. Details are in [validation coverage](docs/VALIDATION.md).
 - There is no automatic uninstall. Cleanup steps are in [stop using BoxCI](docs/OPERATIONS.md#stop-using-boxci).
 
@@ -331,7 +346,7 @@ npm pack --dry-run
   ```sh
   mkdir -p dist
   npm run pack:local
-  npm install --global ./dist/balasivagn-boxci-0.2.2.tgz
+  npm install --global ./dist/balasivagn-boxci-0.3.0.tgz
   ```
 
 - More: [developer experience contract](docs/DEVELOPER_EXPERIENCE.md) · [design tokens](docs/DESIGN.md)

@@ -33,7 +33,7 @@ Setup targets one GitHub repository:
 | ------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Actions secret      | `BOXCI_API_KEY`               | 30-day machine read/write credential used by the wake job. Choose a different name with `--secret NAME`. Its permissions cover all VMs in the provider account.      |
 | Actions variable    | `BOXCI_POOL`                  | JSON array of pool members with `machine_id`, `runner_name` and `expected_name`. Growth updates the same selected variable. Legacy pools may use `INSTABOX_CI_POOL`. |
-| Workflow            | `.github/workflows/boxci.yml` | Hosted wake job followed by one build job. Setup writes the workflow locally; review, commit and push it.                                                            |
+| Workflow            | `.github/workflows/boxci.yml` | Small call to the shared wake helper, followed by the application build job. Review, commit and push both workflow files.                                            |
 | Runner registration | One per VM                    | Repository-level runner with a dedicated shared label, defaulting to `boxci-` plus a repository hash. Override with `--label`.                                       |
 
 An existing secret cannot be read back to verify its account or contents. If setup asks for explicit reuse, inspect the intended integration and pass `--secret BOXCI_API_KEY` (or its actual name) only when appropriate. Setup does not overwrite an existing secret during this reuse; `auth renew` is the explicit rotation path.
@@ -81,3 +81,9 @@ Migration edits selected workflows in the current checkout. `--repo` chooses the
 `init` still performs the cloud actions in its approved plan: create or reuse the VM/runner pool, install the CI secret and set the pool variable. Its completed checkpoint is `ready_to_commit`. `status`, `doctor` and the dashboard show when the starter workflow is missing from the default branch; review, commit and push it through your normal process. The normal `ci run` dispatch requires the workflow on the default branch.
 
 Older saved branches and PR identifiers remain in private records. Retrying an incomplete older setup writes its starter workflow locally and reuses its VM and runner; it does not update, close or replace the existing remote branch or PR. Review any existing PR yourself to avoid duplicate workflow changes.
+
+## Reusable wake workflow
+
+`.github/workflows/boxci-wake.yml` contains the generated Python wake implementation and exposes a `workflow_call` interface. Application workflows pass the pool JSON, dedicated runner label, optional hosted fallback label, and only the selected CI secret as `api-key`. The helper returns the JSON `runner` label list. It requests no GitHub token permissions and never checks out application code.
+
+`init` writes the helper beside its starter workflow. `migrate` uses the same helper for selected application jobs. Review and commit both the helper and its callers together. Existing generated inline wake jobs can be extracted after approval; application steps and dependencies remain intact. Customized wake blocks or conflicting helper files are preserved for manual review. Interrupted or repeated setup reuses the saved VM and runner pool.

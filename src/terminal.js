@@ -77,10 +77,9 @@ export class Terminal {
         );
     }
     lines.push(`  ${this.paint("dim", "Routing   ")}  ${p.label}`);
-    if (p.workflow_edit)
-      lines.push(
-        `  ${this.paint("dim", "Local file")}  ${p.workflow_edit.relPath}`,
-      );
+    for (const edit of p.workflow_edits ||
+      (p.workflow_edit ? [p.workflow_edit] : []))
+      lines.push(`  ${this.paint("dim", "Local file")}  ${edit.relPath}`);
     if (p.command)
       lines.push(`  ${this.paint("dim", "Test      ")}  ${p.command}`);
     lines.push(

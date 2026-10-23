@@ -16,6 +16,11 @@ import {
 import { ownsVm, runnerAdoptVerifyScript, runnerInstallRoot } from "./brand.js";
 import { credentialResponse, keyMetadata, validKeyId } from "./credentials.js";
 import { Workspace } from "./workspace.js";
+import {
+  REUSABLE_WAKE_PATH,
+  reusableWakeWorkflow,
+  upgradeWakeJob,
+} from "./wake.js";
 export { runnerInstallRoot } from "./brand.js";
 export const defaults = {
   secret: "BOXCI_API_KEY",
@@ -445,13 +450,36 @@ export class App {
         `Use separate Actions variable ${poolVariable}, secret ${secret} and workflow ${workflowPath}. Review both workflows to avoid duplicate CI.`,
       );
     if (result.managed_workflow) {
+      const generatedWorkflow = await workflow(result);
       result.workflow_edit = await this.workspace.review(
         repo,
         workflowPath,
-        await workflow(result),
-        { preserveExisting: result.adopt_only },
+        generatedWorkflow,
+        { preserveExisting: !!previous || !!pool },
       );
       result.workflow_delivery = "local";
+      if (result.workflow_edit.before !== null)
+        result.workflow_edit.after = await upgradeWakeJob(
+          result.workflow_edit.after,
+          result,
+        );
+      if (
+        !result.adopt_only &&
+        result.workflow_edit.after !== generatedWorkflow
+      )
+        throw new Error(
+          "The existing workflow has custom changes. It was not overwritten; review it before retrying setup.",
+        );
+      const helper = await this.workspace.review(
+        repo,
+        REUSABLE_WAKE_PATH,
+        await reusableWakeWorkflow(),
+      );
+      result.workflow_edits = [result.workflow_edit, helper];
+      if (result.workflow_edits.some((edit) => edit.before !== edit.after))
+        result.actions.push(
+          `Write the shared wake helper at ${REUSABLE_WAKE_PATH} and its local caller. Review and commit both files together.`,
+        );
       if (result.adopt_only)
         result.actions.push(
           "Keep the existing integration and leave its workflow available locally for review. Existing branches and PRs are preserved.",
@@ -465,7 +493,7 @@ export class App {
           throw new Error(
             `Actions variable ${poolVariable} is missing or differs from the saved pool. Inspect the repository's Actions variables before retrying. No setup changes were made.`,
           );
-        if (result.workflow_edit.before === result.workflow_edit.after) {
+        if (result.workflow_edits.every((edit) => edit.before === edit.after)) {
           result.already_configured = true;
           result.actions = [
             "VM and runner verified; Actions secret exists and pool variable matches. No setup changes needed.",
@@ -496,10 +524,19 @@ export class App {
         throw new Error(
           "Saved project changed after review. Run boxci init again; no setup changes were made.",
         );
-      const { project_revision, workflow_edit, ...setup } = plan;
-      if (workflow_edit) await this.workspace.validate(workflow_edit);
+      const {
+        project_revision,
+        workflow_edit,
+        workflow_edits = workflow_edit ? [workflow_edit] : [],
+        ...setup
+      } = plan;
+      for (const edit of workflow_edits) await this.workspace.validate(edit);
       if (plan.already_configured) {
-        const pending = await this.workspace.pending(workflow_edit);
+        const pending = (
+          await Promise.all(
+            workflow_edits.map((edit) => this.workspace.pending(edit)),
+          )
+        ).some(Boolean);
         const result = {
           ...current,
           already_configured: true,
@@ -514,7 +551,7 @@ export class App {
         return result;
       }
       if (plan.adopt_only) {
-        if (workflow_edit) await this.workspace.apply(workflow_edit);
+        for (const edit of workflow_edits) await this.workspace.apply(edit);
         const adopted = { ...current, ...setup };
         if (workflow_edit) {
           adopted.status = "ready_to_commit";
@@ -530,7 +567,7 @@ export class App {
         await this.checkFreshResources(plan);
         await this.storage.archiveProject(current);
       }
-      if (workflow_edit) await this.workspace.apply(workflow_edit);
+      for (const edit of workflow_edits) await this.workspace.apply(edit);
       const state = (fresh ? null : current) || {
         ...setup,
         pool: plan.pool,
@@ -900,6 +937,22 @@ export class App {
       return project;
     });
   }
+  async workflowPublished(project) {
+    const source = await this.github.content(
+      project.repo,
+      project.workflow_path,
+      project.base,
+    );
+    if (!source) return false;
+    return (
+      !source.includes(`./${REUSABLE_WAKE_PATH}`) ||
+      !!(await this.github.content(
+        project.repo,
+        REUSABLE_WAKE_PATH,
+        project.base,
+      ))
+    );
+  }
   async status(options = {}) {
     const { repo, identity, project } = await this.context(options.repo);
     if (!project)
@@ -918,11 +971,7 @@ export class App {
     let pr = null;
     const localWorkflow = project.workflow_delivery === "local";
     const workflowPublished = localWorkflow
-      ? (await this.github.content(
-          repo,
-          project.workflow_path,
-          project.base,
-        )) !== null
+      ? await this.workflowPublished(project)
       : null;
     if (project.pr_number && !localWorkflow) {
       try {
@@ -1117,11 +1166,7 @@ export class App {
     if (!ref) {
       if (
         project.workflow_delivery === "local" &&
-        !(await this.github.content(
-          project.repo,
-          project.workflow_path,
-          project.base,
-        ))
+        !(await this.workflowPublished(project))
       )
         throw new Error(
           `Review, commit, and push ${project.workflow_path} to the default branch first, or explicitly test --ref your-branch. BoxCI does not create a branch or PR.`,
@@ -1161,13 +1206,16 @@ export class App {
     const root = await this.workspace.root(repo, options.root);
     const files = await scanWorkflows(root);
     const candidates = files.flatMap((f) => f.jobs);
-    if (!candidates.length)
+    if (
+      !candidates.length &&
+      !files.some((file) => file.legacy || file.reusable)
+    )
       throw new Error(
         "No migratable jobs found under .github/workflows (static runs-on only).",
       );
 
     let selectedJobs = options.selectedJobs;
-    if (!selectedJobs && !options.jobs && !options.match) {
+    if (candidates.length && !selectedJobs && !options.jobs && !options.match) {
       if (!process.stdin.isTTY && !options.yes)
         throw new Error(
           "Use --match, --jobs, or --yes with --dry-run after reviewing a plan.",
@@ -1196,7 +1244,7 @@ export class App {
       selectedJobs,
     });
     if (!plan.edits.length)
-      throw new Error("No jobs selected; no workflow files changed.");
+      return { ...plan, message: "No workflow changes needed." };
 
     this.emit({
       type: "migrate-plan",

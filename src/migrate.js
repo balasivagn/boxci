@@ -1,7 +1,13 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
-import { WAKE_JOB, wakeJobYaml } from "./wake.js";
+import {
+  WAKE_JOB,
+  wakeJobYaml,
+  REUSABLE_WAKE_PATH,
+  reusableWakeWorkflow,
+  upgradeWakeJob,
+} from "./wake.js";
 import { Workspace } from "./workspace.js";
 
 const SKIP_FILES = new Set(["boxci.yml", "boxci-wake.yml"]);
@@ -175,9 +181,13 @@ export async function scanWorkflows(root) {
   for (const name of names.sort()) {
     if (!/\.(ya?ml)$/i.test(name)) continue;
     const relPath = `.github/workflows/${name}`;
+    if (SKIP_FILES.has(name)) continue;
     const content = await new Workspace().content(root, relPath);
     const jobs = listMigratableJobs(content, relPath);
-    if (jobs.length) files.push({ relPath, jobs, content });
+    const legacy = content.includes("BOXCI_WAKE");
+    const reusable = content.includes(`./${REUSABLE_WAKE_PATH}`);
+    if (jobs.length || legacy || reusable)
+      files.push({ relPath, jobs, content, legacy, reusable });
   }
   return files;
 }
@@ -231,19 +241,39 @@ export async function buildMigratePlan(project, options = {}) {
     const fileSelected = file.jobs.some((j) =>
       selectedKeys.has(`${j.relPath}:${j.name}`),
     );
-    if (!fileSelected) continue;
+    if (
+      !fileSelected &&
+      (!file.legacy ||
+        options.match ||
+        options.jobs ||
+        options.selectedJobs?.length)
+    )
+      continue;
+    const upgraded = await upgradeWakeJob(file.content, {
+      ...project,
+      secret: project.secret || "BOXCI_API_KEY",
+      fallback: options.fallback || "ubuntu-24.04",
+    });
     const { content, changed } = applyMigration(
-      file.content,
+      upgraded,
       selectedKeys,
       file.relPath,
       wakeJobBlock,
     );
-    if (changed)
+    if (changed || upgraded !== file.content)
       edits.push({
         relPath: file.relPath,
         before: file.content,
         after: content,
       });
+  }
+  if (edits.length || files.some((file) => file.reusable)) {
+    const helper = await new Workspace({ cwd: root }).review(
+      project.repo,
+      REUSABLE_WAKE_PATH,
+      await reusableWakeWorkflow(),
+    );
+    if (helper.before !== helper.after) edits.push(helper);
   }
   return {
     repo: project.repo,
