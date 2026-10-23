@@ -9,7 +9,7 @@
 [![npm version](https://img.shields.io/npm/v/@balasivagn/boxci.svg)](https://www.npmjs.com/package/@balasivagn/boxci)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
-[Quick start](#quick-start) · [How it works](#how-it-works) · [Commands](#commands) · [Migrate jobs](#move-existing-jobs-onto-the-pool) · [Agent skill](#let-your-coding-agent-do-the-migration) · [Good to know](#good-to-know) · [Docs](#docs)
+[Quick start](#quick-start) · [Agent setup](#set-up-with-a-coding-agent) · [How it works](#how-it-works) · [Commands](#commands) · [Migrate jobs](#move-existing-jobs-onto-the-pool) · [Agent skill](#let-your-coding-agent-do-the-migration) · [Good to know](#good-to-know) · [Docs](#docs)
 
 </div>
 
@@ -40,6 +40,16 @@ Hosted minutes run out. A spare machine as a runner turns into a queue the momen
 - **Close your laptop after setup.** CI wakes the pool on its own. The CLI and dashboard are only for you.
 - **A dashboard that watches without touching.** `boxci dashboard` is local, authenticated and read-only. It never wakes a VM.
 - **Hosted fallback built in.** Fork PRs, or a pool that is not fully ready, run on hosted Ubuntu instead. Fork code never receives your provider key.
+
+## Set up with a coding agent
+
+Open your app's checkout in any coding agent with terminal access and paste:
+
+```text
+Set up BoxCI in this repo using https://github.com/balasivagn/boxci. Install its CLI from GitHub source, reuse my current GitHub/InstaBox sign-ins, and show me `boxci init --dry-run` for approval before applying. Then complete setup, migrate compatible existing Linux x64 CI jobs with `boxci migrate`, preserve existing pools, verify with `boxci doctor` and `boxci status`, and leave workflow changes in a PR for review.
+```
+
+Your agent handles the commands; you complete any official browser sign-in and approve the setup plan. The prompt uses GitHub source to include fixes awaiting the next npm release.
 
 ## Quick start
 
