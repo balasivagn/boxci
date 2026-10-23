@@ -21,3 +21,13 @@ jobs:
       - run: npm test
       - run: python3 -m unittest discover -s ci/tests
       - run: npm pack --dry-run
+  dashboard-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --test tests/dashboard-manager.test.js tests/dashboard.test.js

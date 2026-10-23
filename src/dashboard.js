@@ -1,8 +1,7 @@
 import http from "node:http";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import { readFile } from "node:fs/promises";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { run, redact } from "./process.js";
+import { redact } from "./process.js";
 function equal(a, b) {
   const x = Buffer.from(a || ""),
     y = Buffer.from(b || "");
@@ -112,46 +111,4 @@ export async function serveDashboard(
         server.close((e) => (e ? reject(e) : resolve())),
       ),
   };
-}
-export async function dashboard(app, options) {
-  const repo = await app.github.repo(options.repo);
-  await app.status({ repo });
-  const live = await serveDashboard(app, { repo, port: options.port });
-  if (options["session-file"]) {
-    await mkdir(dirname(options["session-file"]), {
-      recursive: true,
-      mode: 0o700,
-    });
-    await writeFile(
-      options["session-file"],
-      JSON.stringify({ origin: live.origin, url: live.url, token: live.token }),
-      { mode: 0o600 },
-    );
-  }
-  if (options["no-open"] && process.stdout.isTTY)
-    console.log("Open in your browser: " + live.url);
-  console.log(
-    `BoxCI dashboard: ${live.origin}\nLocal, read-only. Polling never wakes VMs. Press Ctrl+C to stop.`,
-  );
-  if (!options["no-open"]) {
-    const [command, args] =
-      process.platform === "darwin"
-        ? ["open", [live.url]]
-        : process.platform === "win32"
-          ? ["rundll32", ["url.dll,FileProtocolHandler", live.url]]
-          : ["xdg-open", [live.url]];
-    try {
-      await run(command, args);
-    } catch {
-      console.error(
-        "Browser could not open. Re-run boxci dashboard in a desktop session.",
-      );
-    }
-  }
-  const stop = () => {
-    live.server.close();
-  };
-  process.once("SIGINT", stop);
-  process.once("SIGTERM", stop);
-  return new Promise((resolve) => live.server.on("close", resolve));
 }

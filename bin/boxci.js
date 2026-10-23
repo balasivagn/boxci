@@ -6,7 +6,7 @@ import {
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
 import { App } from "../src/engine.js";
-import { dashboard } from "../src/dashboard.js";
+import { DashboardManager } from "../src/dashboard-manager.js";
 import { redact } from "../src/process.js";
 import { Terminal } from "../src/terminal.js";
 import { version } from "../src/version.js";
@@ -25,7 +25,9 @@ checkout whose GitHub Actions you want to configure.
   boxci wake                  Explicitly wake the configured pool
   boxci ci run                Run the merged workflow (--ref tests a branch)
   boxci migrate               Rewire selected workflow jobs to the InstaBox pool
-  boxci dashboard             Open the optional, local, read-only dashboard
+  boxci dashboard             Start/reopen the local dashboard in the background
+  boxci dashboard status      Check the local dashboard process
+  boxci dashboard stop        Stop the local dashboard; cloud runners stay as-is
 
   --repo owner/repository     Otherwise inferred from the current Git checkout
   --version, -v               Show the installed CLI version
@@ -41,6 +43,7 @@ checkout whose GitHub Actions you want to configure.
   --secret NAME               Explicitly choose/reuse an Actions secret
   --command "install && test" Override the detected test command
   --no-open                   Keep the dashboard server without opening a browser
+  --foreground                Run the dashboard in this terminal for debugging
 
 Existing provider/GitHub sessions are reused. No BoxCI account or token pasting.
 InstaBox CLI is used directly, with the bundled official npm CLI as fallback.
@@ -69,6 +72,7 @@ const bools = [
   "migrate-workflows",
   "no-color",
   "version",
+  "foreground",
 ];
 const options = Object.fromEntries([
   ...strings.map((k) => [k, { type: "string" }]),
@@ -171,8 +175,21 @@ try {
   else if (command === "migrate")
     result = await app.migrate(opts, migrateApprove);
   else if (command === "dashboard") {
-    await dashboard(app, opts);
-    result = null;
+    const manager = new DashboardManager();
+    if (sub === "stop") result = await manager.stop(app, opts);
+    else if (sub === "status") result = await manager.status(app, opts);
+    else if (sub)
+      throw new Error(
+        "Use boxci dashboard, dashboard status, or dashboard stop.",
+      );
+    else if (opts.foreground) {
+      await manager.foreground(app, opts);
+      result = null;
+    } else {
+      if (!opts.json)
+        terminal.step("Starting or reopening the local dashboard…");
+      result = await manager.start(app, opts);
+    }
   } else throw new Error("Unknown command. Run boxci --help.");
   if (result) {
     terminal.finish();

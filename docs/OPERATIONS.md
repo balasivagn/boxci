@@ -8,9 +8,17 @@ Commands here assume `boxci` is available through `npm install -g @balasivagn/bo
 boxci status
 boxci doctor
 boxci dashboard
+boxci dashboard status
+boxci dashboard stop
 ```
 
-These commands read provider state and GitHub APIs without waking VMs or executing guest commands. The dashboard binds to `127.0.0.1`, uses an authenticated local browser session and serves assets locally. No SDK key reaches the browser. Closing it has no effect on CI. Use `--no-open` to start it without opening a browser.
+These commands read provider state and GitHub APIs without waking VMs or executing guest commands. The dashboard binds to `127.0.0.1`, uses an authenticated local browser session and serves assets locally. No SDK key reaches the browser. `boxci dashboard` starts a detached process and returns your terminal immediately. It remains available after that terminal closes. Running the command again reopens the same instance for this repository; it also restarts an instance from an older CLI version. Closing the browser has no effect on CI. The background server does not poll provider APIs when no browser is requesting status.
+
+`boxci dashboard status` checks only the local process. `boxci dashboard stop` stops it without touching VMs, runner registrations, credentials or workflows. These commands use a separate authenticated local control connection; the browser API stays read-only. Add `--repo owner/repository` when running outside its checkout, including when GitHub is unavailable and repository inference cannot run.
+
+Use `--no-open` to start without opening a browser, or `--foreground` to keep the dashboard in the terminal for debugging. Runtime records and logs are private files under the BoxCI data directory's `dashboards/` folder. Session/control tokens are not printed in terminal or JSON output; an explicitly requested `--session-file PATH` writes browser authorization information to a private file for local automation. Keep it out of source control.
+
+The dashboard does not install an OS startup service and does not restart automatically after a reboot. Reopen it with `boxci dashboard`. If an old tab reports `ERR_CONNECTION_REFUSED`, run the command again and use the fresh tab it opens. Closing a foreground dashboard's terminal stops that instance.
 
 VM state and GitHub runner state are separate observations:
 

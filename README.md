@@ -148,13 +148,17 @@ Go deeper: [architecture and source map](docs/ARCHITECTURE.md) · [interactive d
 | `boxci ci run --ref <branch>` | Dispatch on an explicit ref                                      |
 | `boxci status`                | VM and runner states plus recent jobs (passive)                  |
 | `boxci doctor`                | Check account, quota, mapping, merge state, key expiry           |
-| `boxci dashboard`             | Local, read-only live view (`--no-open` to skip the browser)     |
+| `boxci dashboard`             | Start or reopen the background, read-only dashboard              |
+| `boxci dashboard status`      | Check whether the local dashboard is running                     |
+| `boxci dashboard stop`        | Stop the local dashboard; cloud runners stay unchanged           |
 | `boxci wake`                  | Explicitly wake the pool                                         |
 | `boxci pool add --count 1`    | Add a VM to the pool, within your quota                          |
 | `boxci auth renew`            | Rotate the 30-day CI credential                                  |
 | `boxci migrate`               | Move existing workflow jobs onto the pool                        |
 
 Common flags: `--dry-run` previews any change, `--yes` applies a reviewed plan without a prompt, `--json` returns structured output, and `--repo owner/repository` selects the repository. `init` and `migrate` require its matching checkout; monitoring commands can run elsewhere. `status`, `doctor` and `dashboard` never run guest commands or wake VMs.
+
+The dashboard runs in the background, so you can close the terminal. Run `boxci dashboard` again to reopen it, or `boxci dashboard stop` to stop it. Use `--foreground` for debugging and `--no-open` to skip launching a browser. It does not start automatically after a reboot. See [dashboard operations](docs/OPERATIONS.md#check-the-pool).
 
 ## Move existing jobs onto the pool
 
@@ -272,7 +276,7 @@ Runner service readiness does not prove GitHub connectivity. Fallback is chosen 
 
 <br>
 
-- BoxCI is at **v0.2.0**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
+- BoxCI is at **v0.2.1**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
 - Commands in this README use a POSIX shell. Native Linux and Windows bootstrap and fresh-account authentication still need verification. Details are in [validation coverage](docs/VALIDATION.md).
 - There is no automatic uninstall. Cleanup steps are in [stop using BoxCI](docs/OPERATIONS.md#stop-using-boxci).
 
@@ -326,7 +330,7 @@ npm pack --dry-run
   ```sh
   mkdir -p dist
   npm run pack:local
-  npm install --global ./dist/balasivagn-boxci-0.2.0.tgz
+  npm install --global ./dist/balasivagn-boxci-0.2.1.tgz
   ```
 
 - More: [developer experience contract](docs/DEVELOPER_EXPERIENCE.md) · [design tokens](docs/DESIGN.md)

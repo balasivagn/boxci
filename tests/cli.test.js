@@ -31,4 +31,7 @@ test("help shows version and application-checkout guidance before any setup", ()
   assert.equal(result.status, 0);
   assert.ok(result.stdout.includes(`v${version}`));
   assert.match(result.stdout, /application\s+checkout/);
+  assert.match(result.stdout, /dashboard status/);
+  assert.match(result.stdout, /dashboard stop/);
+  assert.match(result.stdout, /--foreground/);
 });

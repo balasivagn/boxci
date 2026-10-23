@@ -31,3 +31,9 @@ Status and dashboard are passive. Paused is a valid VM state; offline is a separ
 ## Distribution gates
 
 BoxCI is distributed on npm as `@balasivagn/boxci`; source and packed installs also work. See [releasing](RELEASING.md) for the publication workflow. Linux/Windows live bootstrap and fresh-account browser authentication require their own environment verification; injected tests do not substitute for those claims.
+
+## Dashboard process lifecycle
+
+The dashboard starts as a detached Node process by default. A private per-repository record identifies its HTTP origin and authenticated local control endpoint. Reopening reuses a verified instance, startup is serialized, and stale metadata never authorizes signalling a PID. `dashboard stop` authenticates the live instance before requesting shutdown; browser HTTP routes remain read-only. `--foreground` keeps the same service attached for debugging.
+
+Regression tests launch the real worker protocol in separate fixture processes and verify survival after the launcher exits, reuse, concurrent startup, private state, token-free output, rejection of invalid control requests and stale-record recovery. Fixture workers do not use live credentials.
