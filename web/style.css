@@ -65,20 +65,6 @@ header {
   gap: 8px;
   align-items: center;
 }
-.mark {
-  font-family: var(--font-mono);
-  font-size: 30px;
-  margin-right: 3px;
-}
-.brand-sub {
-  font-size: 10px;
-  letter-spacing: 0.7px;
-  font-weight: 500;
-  border: 1px solid rgb(var(--border));
-  padding: 2px 5px;
-  border-radius: 4px;
-  margin-left: 1px;
-}
 .header-right {
   display: flex;
   gap: 10px;
