@@ -114,11 +114,18 @@ function render(data) {
     (j) => j.status === "queued",
   ).length;
   $("pool-label").textContent = data.label;
-  $("migration").hidden = !data.pr || data.pr.merged;
-  $("migration-detail").textContent = data.pr?.draft
-    ? "The runner pool is configured. Normal CI switches after the draft PR is reviewed and merged."
-    : "Review the workflow before merging. CI wake works with this dashboard closed.";
+  const localPending = data.workflow_published === false;
+  $("migration").hidden = !localPending && (!data.pr || data.pr.merged);
+  $("migration-title").textContent = localPending
+    ? "Workflow changes are local"
+    : "CI migration awaits merge";
+  $("migration-detail").textContent = localPending
+    ? `Review git diff, then commit and push ${data.workflow_path} through your normal process.`
+    : data.pr?.draft
+      ? "The runner pool is configured. Normal CI switches after the draft PR is reviewed and merged."
+      : "Review the workflow before merging. CI wake works with this dashboard closed.";
   const pr = safeURL(data.pr?.url);
+  $("pr").hidden = localPending;
   if (pr) $("pr").href = pr;
   else $("pr").removeAttribute("href");
   $("members").replaceChildren();

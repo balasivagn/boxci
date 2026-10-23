@@ -75,6 +75,10 @@ export class Terminal {
         );
     }
     lines.push(`  ${this.paint("dim", "Routing   ")}  ${p.label}`);
+    if (p.workflow_edit)
+      lines.push(
+        `  ${this.paint("dim", "Local file")}  ${p.workflow_edit.relPath}`,
+      );
     if (p.command)
       lines.push(`  ${this.paint("dim", "Test      ")}  ${p.command}`);
     lines.push("", this.paint("bold", "Planned changes"));

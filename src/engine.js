@@ -11,10 +11,10 @@ import {
   applyMigratePlan,
   scanWorkflows,
   promptJobSelection,
-  gitRoot,
 } from "./migrate.js";
 import { ownsVm, runnerAdoptVerifyScript, runnerInstallRoot } from "./brand.js";
 import { credentialResponse, keyMetadata, validKeyId } from "./credentials.js";
+import { Workspace } from "./workspace.js";
 export { runnerInstallRoot } from "./brand.js";
 export const defaults = {
   secret: "BOXCI_API_KEY",
@@ -23,6 +23,8 @@ export const defaults = {
 const safeName = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const labelPattern = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/;
 const generic = new Set(["self-hosted", "linux", "x64", "arm64"]);
+const completeSetup = (project) =>
+  ["awaiting_merge", "merged", "ready_to_commit"].includes(project.status);
 export function validatePool(pool, machines, runners, label) {
   if (!Array.isArray(pool) || !pool.length || pool.length > 5)
     throw new Error("Pool must have one to five distinct VMs.");
@@ -130,11 +132,13 @@ export class App {
     github = new GitHub(),
     storage = store,
     emit = () => {},
+    workspace = new Workspace(),
   } = {}) {
     this.provider = provider;
     this.github = github;
     this.storage = storage;
     this.emit = emit;
+    this.workspace = workspace;
   }
   async context(
     repo,
@@ -218,8 +222,7 @@ export class App {
       if (!Array.isArray(pool) || !pool.length || pool.length > 5)
         throw new Error("Pool must have one to five distinct VMs.");
     }
-    const incomplete =
-      !!project && !["awaiting_merge", "merged"].includes(project.status);
+    const incomplete = !!project && !completeSetup(project);
     if (incomplete && !pool?.length) pool = null;
     let inferredLabel;
     if (pool && !previous?.label && !options.label) {
@@ -405,7 +408,7 @@ export class App {
       actions: incomplete
         ? [
             "Resume the saved setup checkpoints. Existing runners and VMs are not replaced.",
-            "Finish the CI credential and workflow PR. Retire only recorded incomplete keys after secret delivery succeeds.",
+            "Finish the CI credential and local workflow file. Retire only recorded incomplete keys after secret delivery succeeds.",
           ]
         : pool && previous
           ? [
@@ -421,7 +424,7 @@ export class App {
               secretExists
                 ? "Reuse the selected Actions secret."
                 : "Create a 30-day machine read/write key and transfer it directly to the repository secret. This key can execute commands on all VMs in this account.",
-              "Open a workflow PR. No automatic merge.",
+              `Write the workflow locally at ${workflowPath}. Review git diff, commit, and push; no branch or PR is created.`,
             ],
     };
     if (fresh)
@@ -430,6 +433,19 @@ export class App {
         `Preserve the previous project record at ${result.previous_project.archive_path}. Existing VMs, runners, credentials, variables and workflows stay in place.`,
         `Use separate Actions variable ${poolVariable}, secret ${secret} and workflow ${workflowPath}. Review both workflows to avoid duplicate CI.`,
       );
+    if (result.managed_workflow) {
+      result.workflow_edit = await this.workspace.review(
+        repo,
+        workflowPath,
+        await workflow(result),
+        { preserveExisting: result.adopt_only },
+      );
+      result.workflow_delivery = "local";
+      if (result.adopt_only)
+        result.actions.push(
+          "Keep the existing integration and leave its workflow available locally for review. Existing branches and PRs are preserved.",
+        );
+    }
     return result;
   }
   async init(options = {}, approve = async () => false) {
@@ -453,9 +469,16 @@ export class App {
         throw new Error(
           "Saved project changed after review. Run boxci init again; no setup changes were made.",
         );
-      const { project_revision, ...setup } = plan;
+      const { project_revision, workflow_edit, ...setup } = plan;
+      if (workflow_edit) await this.workspace.validate(workflow_edit);
       if (plan.adopt_only) {
+        if (workflow_edit) await this.workspace.apply(workflow_edit);
         const adopted = { ...current, ...setup };
+        if (workflow_edit) {
+          adopted.status = "ready_to_commit";
+          adopted.message =
+            "Workflow changes are local. Review git diff, commit, and push.";
+        }
         await this.storage.saveProject(adopted);
         this.emit({ type: "adopted", project: adopted });
         return adopted;
@@ -465,11 +488,13 @@ export class App {
         await this.checkFreshResources(plan);
         await this.storage.archiveProject(current);
       }
+      if (workflow_edit) await this.workspace.apply(workflow_edit);
       const state = (fresh ? null : current) || {
         ...setup,
         pool: plan.pool,
         pending: [],
       };
+      if (workflow_edit) state.workflow_delivery = "local";
       await this.storage.saveProject(state);
       await this.provision(state, state.target_count || plan.count);
       this.emit({
@@ -646,50 +671,7 @@ export class App {
   async configure(state) {
     await this.guard(state);
     if (!state.command) throw new Error("Test command missing.");
-    this.emit({ type: "step", message: "Preparing the workflow branch…" });
-    const source = await workflow(state);
     const repo = state.repo;
-    if (!state.branch) {
-      if (await this.github.content(repo, state.workflow_path, state.base))
-        throw new Error(
-          `${state.workflow_path} already exists. It was not overwritten.`,
-        );
-      state.branch = "codex/boxci-" + randomUUID().slice(0, 8);
-      await this.storage.saveProject(state);
-    }
-    try {
-      await this.github.api(`repos/${repo}/git/ref/heads/${state.branch}`);
-    } catch (e) {
-      if (!/404/.test(e.message)) throw e;
-      const base = await this.github.api(
-        `repos/${repo}/git/ref/heads/${state.base}`,
-      );
-      await this.github.api(`repos/${repo}/git/refs`, {
-        method: "POST",
-        body: { ref: "refs/heads/" + state.branch, sha: base.object.sha },
-      });
-    }
-    const existing = await this.github.content(
-      repo,
-      state.workflow_path,
-      state.branch,
-    );
-    if (existing && existing !== source)
-      throw new Error(
-        "Workflow branch contains a different file. Review it before retrying.",
-      );
-    if (!existing)
-      await this.github.api(`repos/${repo}/contents/${state.workflow_path}`, {
-        method: "PUT",
-        body: {
-          branch: state.branch,
-          message: "ci: add InstaBox on-demand runner pool",
-          content: Buffer.from(source).toString("base64"),
-        },
-      });
-    if (state.status !== "credential_pending")
-      state.status = "workflow_uploaded";
-    await this.storage.saveProject(state);
     await this.variable(state);
     if (!(await this.github.hasSecret(repo, state.secret))) {
       const { secret, meta } = await this.createCredential(state);
@@ -724,24 +706,9 @@ export class App {
     await this.retireRecordedKeys(state);
     state.status = "credential_installed";
     await this.storage.saveProject(state);
-    this.emit({ type: "step", message: "Opening the workflow pull request…" });
-    const matches = await this.github.api(
-      `repos/${repo}/pulls?state=all&head=${repo.split("/")[0]}:${state.branch}`,
-    );
-    const pr =
-      matches[0] ||
-      (await this.github.api(`repos/${repo}/pulls`, {
-        method: "POST",
-        body: {
-          head: state.branch,
-          base: state.base,
-          title: "ci: run GitHub Actions on InstaBox",
-          body: "Adds the reviewed BoxCI workflow with bounded pool wake and hosted fallback. The wake job never checks out PR code. Normal idle pause stays enabled. Review the inferred build command and merge through normal repository controls. This PR can run CI when opened.",
-        },
-      }));
-    state.pr_number = pr.number;
-    state.pr_url = pr.html_url;
-    state.status = "awaiting_merge";
+    state.status = "ready_to_commit";
+    state.message =
+      "Workflow changes are local. Review git diff, commit, and push.";
     await this.storage.saveProject(state);
     this.emit({ type: "complete", project: state });
   }
@@ -869,7 +836,7 @@ export class App {
       quota,
       actions: [
         `Add ${count} dedicated VM(s) and service runners.`,
-        `Update the existing manifest and reviewed workflow branch ${project.branch || ""}.`,
+        "Update the existing pool manifest. Workflow files and branches are unchanged.",
       ],
     };
     this.emit({ type: "plan", plan });
@@ -883,7 +850,10 @@ export class App {
       await this.storage.saveProject(project);
       await this.provision(project, project.target_count);
       await this.variable(project);
-      project.status = "awaiting_merge";
+      project.status =
+        project.workflow_delivery === "local"
+          ? "ready_to_commit"
+          : "awaiting_merge";
       await this.storage.saveProject(project);
       return project;
     });
@@ -904,7 +874,15 @@ export class App {
       jobs = [],
       historyError = null;
     let pr = null;
-    if (project.pr_number) {
+    const localWorkflow = project.workflow_delivery === "local";
+    const workflowPublished = localWorkflow
+      ? (await this.github.content(
+          repo,
+          project.workflow_path,
+          project.base,
+        )) !== null
+      : null;
+    if (project.pr_number && !localWorkflow) {
       try {
         const result = await this.github.api(
           `repos/${repo}/pulls/${project.pr_number}`,
@@ -920,16 +898,18 @@ export class App {
       }
     }
     try {
-      runs = await this.github.recent(
-        repo,
-        project.workflow_path,
-        pr && !pr.merged ? project.branch : undefined,
-      );
-      for (const r of runs.slice(0, 3)) {
-        const data = await this.github.api(
-          `repos/${repo}/actions/runs/${r.id}/jobs?per_page=100`,
+      if (!localWorkflow || workflowPublished) {
+        runs = await this.github.recent(
+          repo,
+          project.workflow_path,
+          pr && !pr.merged ? project.branch : undefined,
         );
-        jobs.push(...data.jobs.map((j) => ({ ...j, run_url: r.html_url })));
+        for (const r of runs.slice(0, 3)) {
+          const data = await this.github.api(
+            `repos/${repo}/actions/runs/${r.id}/jobs?per_page=100`,
+          );
+          jobs.push(...data.jobs.map((j) => ({ ...j, run_url: r.html_url })));
+        }
       }
     } catch (e) {
       historyError = redact(e.message);
@@ -939,6 +919,8 @@ export class App {
       account: identity,
       label: project.label,
       workflow_path: project.workflow_path,
+      workflow_delivery: project.workflow_delivery,
+      workflow_published: workflowPublished,
       checked_at: new Date().toISOString(),
       quota: { used: machines.length, max: usage.limits?.maxMachines },
       members: project.pool.map((p) => ({
@@ -1008,10 +990,7 @@ export class App {
   }
   async doctor(options = {}) {
     const context = await this.context(options.repo);
-    if (
-      context.project &&
-      !["awaiting_merge", "merged"].includes(context.project.status)
-    )
+    if (context.project && !completeSetup(context.project))
       return {
         repo: context.repo,
         ready: false,
@@ -1044,13 +1023,24 @@ export class App {
         detail: "Read from provider state; no guest commands run",
       },
       {
-        name: "Workflow merge",
-        ok: state.pr?.merged === true,
-        detail: state.pr?.merged
-          ? "Merged"
-          : state.pr?.draft
-            ? "Draft PR awaits review and merge"
-            : "Workflow PR awaits merge",
+        name:
+          state.workflow_delivery === "local"
+            ? "Workflow published"
+            : "Workflow merge",
+        ok:
+          state.workflow_delivery === "local"
+            ? state.workflow_published
+            : state.pr?.merged === true,
+        detail:
+          state.workflow_delivery === "local"
+            ? state.workflow_published
+              ? "Workflow is on the default branch"
+              : `Review, commit, and push ${state.workflow_path}; merge through your normal process.`
+            : state.pr?.merged
+              ? "Merged"
+              : state.pr?.draft
+                ? "Draft PR awaits review and merge"
+                : "Workflow PR awaits merge",
       },
       {
         name: "Credential expiry",
@@ -1083,11 +1073,23 @@ export class App {
     if (!project) throw new Error("Run boxci init first.");
     let ref = options.ref;
     if (!ref) {
-      const pr = project.pr_number
-        ? await this.github.api(
-            `repos/${project.repo}/pulls/${project.pr_number}`,
-          )
-        : null;
+      if (
+        project.workflow_delivery === "local" &&
+        !(await this.github.content(
+          project.repo,
+          project.workflow_path,
+          project.base,
+        ))
+      )
+        throw new Error(
+          `Review, commit, and push ${project.workflow_path} to the default branch first, or explicitly test --ref your-branch. BoxCI does not create a branch or PR.`,
+        );
+      const pr =
+        project.pr_number && project.workflow_delivery !== "local"
+          ? await this.github.api(
+              `repos/${project.repo}/pulls/${project.pr_number}`,
+            )
+          : null;
       if (pr && !pr.merged)
         throw new Error(
           `Merge ${project.pr_url} first, or explicitly test --ref ${project.branch}.`,
@@ -1114,7 +1116,8 @@ export class App {
     if (!project.label)
       throw new Error("Project record is missing a routing label.");
 
-    const files = await scanWorkflows(options.root || gitRoot());
+    const root = await this.workspace.root(repo, options.root);
+    const files = await scanWorkflows(root);
     const candidates = files.flatMap((f) => f.jobs);
     if (!candidates.length)
       throw new Error(
@@ -1147,6 +1150,7 @@ export class App {
 
     const plan = await buildMigratePlan(project, {
       ...options,
+      root,
       selectedJobs,
     });
     if (!plan.edits.length)

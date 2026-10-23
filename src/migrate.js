@@ -1,7 +1,8 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 import { WAKE_JOB, wakeJobYaml } from "./wake.js";
+import { Workspace } from "./workspace.js";
 
 const SKIP_FILES = new Set(["boxci.yml", "boxci-wake.yml"]);
 const SKIP_JOBS = new Set([WAKE_JOB, "wake"]);
@@ -104,9 +105,7 @@ export function mergeNeeds(existing) {
 
 function ensurePermissions(lines) {
   if (/^permissions:\s/m.test(lines.join("\n"))) return lines;
-  const onLine = lines.findIndex((l) => /^on:\s/.test(l) || /^on:\s*$/.test(l));
-  let insertAt = onLine >= 0 ? onLine + 1 : 0;
-  while (insertAt < lines.length && lines[insertAt].trim() !== "") insertAt++;
+  const insertAt = lines.findIndex((l) => /^jobs:\s*$/.test(l));
   return [
     ...lines.slice(0, insertAt),
     "",
@@ -176,7 +175,7 @@ export async function scanWorkflows(root) {
   for (const name of names.sort()) {
     if (!/\.(ya?ml)$/i.test(name)) continue;
     const relPath = `.github/workflows/${name}`;
-    const content = await readFile(join(root, relPath), "utf8");
+    const content = await new Workspace().content(root, relPath);
     const jobs = listMigratableJobs(content, relPath);
     if (jobs.length) files.push({ relPath, jobs, content });
   }
@@ -248,6 +247,7 @@ export async function buildMigratePlan(project, options = {}) {
   }
   return {
     repo: project.repo,
+    root,
     label: project.label,
     jobs: picked.map((j) => ({
       workflow: j.relPath,
@@ -259,11 +259,15 @@ export async function buildMigratePlan(project, options = {}) {
 }
 
 export async function applyMigratePlan(plan, { dryRun = false } = {}) {
-  const root = gitRoot();
   if (dryRun) return plan;
-  for (const edit of plan.edits) {
-    await writeFile(join(root, edit.relPath), edit.after, "utf8");
-  }
+  const workspace = new Workspace();
+  const edits = plan.edits.map((edit) => ({
+    ...edit,
+    root: plan.root,
+    repo: plan.repo,
+  }));
+  for (const edit of edits) await workspace.validate(edit);
+  for (const edit of edits) await workspace.apply(edit);
   return plan;
 }
 

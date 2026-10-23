@@ -15,12 +15,13 @@ function fixture() {
     secrets: new Set(),
     variables: new Map(),
     files: new Map(),
+    localFiles: new Map(),
     branches: new Set(),
     calls: [],
     keys: 0,
     keyRecords: [],
     prs: [],
-    failPR: false,
+    failCompletion: false,
     failSecret: false,
     identity: { userId: 7, login: "developer" },
   };
@@ -32,9 +33,32 @@ function fixture() {
       return archiveFileFor(p);
     },
     saveProject: async (p) => {
+      if (db.failCompletion && p.status === "ready_to_commit")
+        throw new Error("completion response lost");
       db.project = structuredClone(p);
     },
     locked: async (_, fn) => fn(),
+  };
+  const workspace = {
+    review: async (repo, relPath, after, { preserveExisting = false } = {}) => {
+      const before = db.localFiles.get(relPath) ?? null;
+      if (before !== null && before !== after && !preserveExisting)
+        throw new Error("local workflow conflict");
+      return {
+        repo,
+        relPath,
+        before,
+        after: preserveExisting && before !== null ? before : after,
+      };
+    },
+    validate: async (edit) => {
+      if ((db.localFiles.get(edit.relPath) ?? null) !== edit.before)
+        throw new Error("local workflow changed after review");
+    },
+    apply: async (edit) => {
+      await workspace.validate(edit);
+      db.localFiles.set(edit.relPath, edit.after);
+    },
   };
   const provider = {
     identity: async () => ({ ...db.identity }),
@@ -111,6 +135,14 @@ function fixture() {
     content: async (_, path, ref) => db.files.get(ref + ":" + path) || null,
     recent: async () => [],
     api: async (path, opts = {}) => {
+      if (
+        opts.method &&
+        opts.method !== "GET" &&
+        (/\/git\//.test(path) ||
+          /\/contents\//.test(path) ||
+          /\/pulls$/.test(path))
+      )
+        throw new Error("Remote workflow writes are forbidden");
       db.calls.push(opts.method || "GET");
       if (path === "user") return { login: "builder" };
       if (path === "repos/acme/project")
@@ -152,7 +184,7 @@ function fixture() {
         return db.prs.filter((pr) => head.endsWith(":" + pr.branch));
       }
       if (path.endsWith("/pulls") && opts.method === "POST") {
-        if (db.failPR) throw new Error("PR response lost");
+        if (db.failCompletion) throw new Error("PR response lost");
         const pr = {
           number: db.prs.length + 1,
           html_url:
@@ -175,7 +207,7 @@ function fixture() {
     provider,
     github,
     storage,
-    app: new App({ provider, github, storage }),
+    app: new App({ provider, github, storage, workspace }),
   };
 }
 const options = {
@@ -183,14 +215,18 @@ const options = {
   command: "npm ci && npm test",
   yes: true,
 };
-test("new setup creates a verified service runner, transfers the credential privately and opens a workflow PR", async () => {
+test("new setup creates a verified service runner, transfers the credential privately and writes the workflow locally", async () => {
   const { app, db } = fixture();
   const state = await app.init(options);
-  assert.equal(state.status, "awaiting_merge");
+  assert.equal(state.status, "ready_to_commit");
   assert.equal(state.pool.length, 1);
+  assert.equal(state.workflow_delivery, "local");
+  assert.equal(db.branches.size, 0);
+  assert.equal(db.files.size, 0);
+  assert.equal(db.prs.length, 0);
   assert.equal(db.keys, 1);
   assert.deepEqual(JSON.parse(db.variables.get("BOXCI_POOL")), state.pool);
-  const source = [...db.files.values()][0];
+  const source = [...db.localFiles.values()][0];
   assert.match(source, /vars.BOXCI_POOL/);
   assert.match(source, /ThreadPoolExecutor/);
   assert.match(source, /head.repo.full_name == github.repository/);
@@ -205,12 +241,85 @@ test("dry run and declined confirmation never provision or save a project", asyn
   const { app, db } = fixture();
   await app.init({ ...options, dryRun: true });
   assert.equal(db.project, null);
+  assert.equal(db.localFiles.size, 0);
   assert.equal(db.calls.includes("create"), false);
   await assert.rejects(
     app.init({ ...options, yes: false }, async () => false),
     /cancelled/,
   );
   assert.equal(db.project, null);
+  assert.equal(db.localFiles.size, 0);
+});
+test("local write failure or an edit after review blocks setup before provisioning", async () => {
+  const failed = fixture();
+  failed.app.workspace.apply = async () => {
+    throw new Error("checkout is read-only");
+  };
+  await assert.rejects(failed.app.init(options), /read-only/);
+  assert.equal(failed.db.machines.length, 0);
+  assert.equal(failed.db.keys, 0);
+  const changed = fixture();
+  await assert.rejects(
+    changed.app.init({ ...options, yes: false }, async (plan) => {
+      changed.db.localFiles.set(plan.workflow_path, "my new local edits");
+      return true;
+    }),
+    /changed after review/,
+  );
+  assert.equal(changed.db.project, null);
+  assert.equal(changed.db.machines.length, 0);
+  assert.equal(
+    changed.db.localFiles.get(".github/workflows/boxci.yml"),
+    "my new local edits",
+  );
+});
+test("a legacy uploaded branch resumes into a local diff without changing that branch or registering another runner", async () => {
+  const { app, db } = fixture();
+  db.failSecret = true;
+  await assert.rejects(app.init(options), /transfer failed/);
+  db.project.workflow_delivery = undefined;
+  db.project.branch = "legacy-ci-branch";
+  db.files.set(
+    "legacy-ci-branch:" + db.project.workflow_path,
+    "legacy uploaded workflow",
+  );
+  const remote = new Map(db.files);
+  db.failSecret = false;
+  db.calls = [];
+  await app.init(options);
+  assert.equal(db.project.branch, "legacy-ci-branch");
+  assert.deepEqual(db.files, remote);
+  assert.equal(db.branches.size, 0);
+  assert.equal(db.prs.length, 0);
+  assert.equal(db.calls.includes("create"), false);
+  assert.equal(db.calls.includes("exec"), false);
+  assert.equal(db.project.status, "ready_to_commit");
+});
+test("local workflow readiness uses the default branch, and status never wakes VMs or fetches unavailable history", async () => {
+  const { app, db, github } = fixture();
+  await app.init(options);
+  db.calls = [];
+  github.recent = async () => {
+    throw new Error("history must not be requested before publish");
+  };
+  const pending = await app.status(options);
+  assert.equal(pending.workflow_published, false);
+  assert.equal(pending.history_error, null);
+  assert.equal(
+    (await app.doctor(options)).checks.find(
+      (c) => c.name === "Workflow published",
+    ).ok,
+    false,
+  );
+  assert.ok(db.calls.every((call) => call === "GET"));
+  db.files.set(
+    "main:" + db.project.workflow_path,
+    db.localFiles.get(db.project.workflow_path),
+  );
+  github.recent = async () => [];
+  assert.equal((await app.status(options)).workflow_published, true);
+  assert.equal((await app.doctor(options)).ready, true);
+  assert.equal((await app.ciRun(options)).ref, "main");
 });
 test("saved three-VM project is adopted without VM, credential or GitHub writes", async () => {
   const f = fixture();
@@ -255,16 +364,16 @@ test("saved three-VM project is adopted without VM, credential or GitHub writes"
   assert.equal(f.db.calls.includes("exec"), false);
   assert.equal(f.db.calls.includes("POST"), false);
 });
-test("PR failure resumes from checkpoint without a second VM, runner or key", async () => {
+test("completion checkpoint failure resumes from checkpoint without a second VM, runner or key", async () => {
   const { app, db } = fixture();
-  db.failPR = true;
+  db.failCompletion = true;
   await assert.rejects(app.init(options), /response lost/);
-  db.failPR = false;
+  db.failCompletion = false;
   await app.init(options);
   assert.equal(db.machines.length, 1);
   assert.equal(db.runners.length, 1);
   assert.equal(db.keys, 1);
-  assert.equal(db.prs.length, 1);
+  assert.equal(db.prs.length, 0);
 });
 test("failed secret transfer revokes the orphan key on reviewed retry without duplicating machines", async () => {
   const { app, db } = fixture();
@@ -340,7 +449,7 @@ test("certificate validation failure resumes the same VM and runner at full quot
     false,
   );
   assert.ok(db.calls.includes("keys rm key_fixture_1"));
-  assert.equal(db.project.status, "awaiting_merge");
+  assert.equal(db.project.status, "ready_to_commit");
   assert.equal(JSON.stringify(db.project).includes("ibk_"), false);
 });
 test("CLI response containing only a secret fetches metadata by the checkpointed request name", async () => {
@@ -491,6 +600,15 @@ test("account changed after review blocks every mutation", async () => {
 async function switchedAccountFixture() {
   const f = fixture();
   await f.app.init(options);
+  f.db.project.workflow_delivery = undefined;
+  f.db.project.branch = "legacy-ci-branch";
+  f.db.project.pr_url = "https://github.com/acme/project/pull/1";
+  f.db.project.pr_number = 1;
+  f.db.project.status = "awaiting_merge";
+  f.db.files.set(
+    "legacy-ci-branch:" + f.db.project.workflow_path,
+    f.db.localFiles.get(f.db.project.workflow_path),
+  );
   const old = structuredClone(f.db.project);
   f.db.identity = { userId: -8, login: "current@example.test" };
   f.db.machines = [];
@@ -533,7 +651,7 @@ test("approved fresh setup archives the full old record and isolates GitHub reso
   for (const [k, v] of oldFiles) assert.equal(db.files.get(k), v);
   assert.deepEqual(db.runners.slice(0, oldRunners.length), oldRunners);
   assert.ok(db.secrets.has(old.secret));
-  const source = db.files.get(state.branch + ":" + state.workflow_path);
+  const source = db.localFiles.get(state.workflow_path);
   assert.ok(source.includes(state.pool_variable));
   assert.ok(source.includes(state.secret));
   assert.ok(source.includes(state.label));
@@ -549,12 +667,12 @@ test("approved fresh setup archives the full old record and isolates GitHub reso
 });
 test("fresh setup failure resumes its new checkpoints without losing the archived pool", async () => {
   const { app, db, old } = await switchedAccountFixture();
-  db.failPR = true;
+  db.failCompletion = true;
   await assert.rejects(app.init(options), /response lost/);
   assert.deepEqual(db.archives, [old]);
   assert.deepEqual(db.project.account, db.identity);
   const pool = structuredClone(db.project.pool);
-  db.failPR = false;
+  db.failCompletion = false;
   await app.init(options);
   assert.deepEqual(db.project.pool, pool);
   assert.deepEqual(db.archives, [old]);
@@ -693,12 +811,12 @@ test("registration collision cannot replace another runner", () => {
 test("CI dispatch refuses unmerged defaults and allows an explicit reviewed branch", async () => {
   const { app, db } = fixture();
   await app.init(options);
-  await assert.rejects(app.ciRun({ repo: "acme/project" }), /Merge/);
+  await assert.rejects(app.ciRun({ repo: "acme/project" }), /commit, and push/);
   const result = await app.ciRun({
     repo: "acme/project",
-    ref: db.project.branch,
+    ref: "reviewed-ci-branch",
   });
-  assert.equal(result.ref, db.project.branch);
+  assert.equal(result.ref, "reviewed-ci-branch");
 });
 test("native provider reuses auth and falls back to bundled official CLI without reading credentials", async () => {
   const calls = [];
@@ -771,12 +889,19 @@ test("lost create response recovers its owned VM even when it fills the account 
   await app.init(options);
   assert.equal(db.machines.length, 1);
   assert.equal(db.runners.length, 1);
-  assert.equal(db.prs.length, 1);
+  assert.equal(db.prs.length, 0);
 });
 
 test("draft integration history stays scoped to its CI branch instead of unrelated default-branch Mac runs", async () => {
   const { app, db, github } = fixture();
   await app.init(options);
+  db.project.workflow_delivery = undefined;
+  db.project.branch = "legacy-ci-branch";
+  db.project.pr_number = 1;
+  db.prs.push({
+    html_url: "https://github.com/acme/project/pull/1",
+    merged: false,
+  });
   let branch;
   github.recent = async (_, __, selected) => {
     branch = selected;
@@ -833,7 +958,7 @@ for (const variableName of ["BOXCI_POOL", "INSTABOX_CI_POOL"]) {
       db.calls.every((call) => call === "GET"),
       true,
     );
-    assert.ok(plan.actions.some((a) => a.includes("workflow PR")));
+    assert.ok(plan.actions.some((a) => a.includes("workflow locally")));
 
     const result = await app.init(options);
     assert.equal(result.pool_variable, variableName);
@@ -841,8 +966,8 @@ for (const variableName of ["BOXCI_POOL", "INSTABOX_CI_POOL"]) {
     assert.equal(db.machines.length, 1);
     assert.equal(db.calls.includes("create"), false);
     assert.equal(db.calls.includes("exec"), false);
-    assert.equal(db.prs.length, 1);
-    const source = db.files.get(result.branch + ":" + result.workflow_path);
+    assert.equal(db.prs.length, 0);
+    const source = db.localFiles.get(result.workflow_path);
     assert.ok(source.includes(`vars.${variableName}`));
 
     const grown = await app.add({ repo: options.repo, count: 1, yes: true });

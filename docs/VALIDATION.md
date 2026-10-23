@@ -1,10 +1,10 @@
 # Validation
 
-v0.1.0, 23 October 2026. This record covers standalone BoxCI checks that require no live credentials.
+v0.2.0, 23 October 2026. This record covers standalone BoxCI checks that require no live credentials.
 
 ## Automated coverage
 
-Automated checks cover setup review/cancellation, existing pool adoption, PR response recovery, secret-transfer retry, account switching, dynamic quota, manifest updates on pool growth, passive paused status, unmanaged-label refusal, explicit branch dispatch, native CLI fallback, redaction, credential rotation ordering, dashboard authorization/origin/read-only enforcement and bootstrap checksums. Python wake/routing/pool tests cover `ci/wake.py`.
+Automated checks cover setup review/cancellation, existing pool adoption, local workflow and legacy-checkpoint recovery, secret-transfer retry, account switching, dynamic quota, manifest updates on pool growth, passive paused status, unmanaged-label refusal, explicit branch dispatch, native CLI fallback, redaction, credential rotation ordering, dashboard authorization/origin/read-only enforcement and bootstrap checksums. Python wake/routing/pool tests cover `ci/wake.py`.
 
 Regression coverage verifies fresh discovery of `BOXCI_POOL` and legacy `INSTABOX_CI_POOL`, current-name precedence, authoritative recorded names, reuse without provisioning, workflow variable selection, growth on the selected manifest and refusal of invalid manifests before mutations.
 
@@ -12,9 +12,11 @@ The pinned SDK is exercised against a local HTTP fixture. Provider and GitHub op
 
 ## Standalone check results
 
-- The Node suite reported 41 passes and two failures caused by sandbox denial of loopback socket binding (`listen EPERM` in the dashboard and SDK HTTP fixtures). Those two tests require an environment that permits local listeners; this record does not claim a complete Node pass.
-- All 23 Python wake/routing/pool tests and Prettier checks passed.
-- Package dry-run verification includes the documentation and architecture artifacts, and excludes scratch files, private state and development dependencies.
+Run the four documented checks before a release; hosted results are in the repository's **Check** workflow. The local sandbox blocks loopback listeners used by the dashboard, SDK and HTTPS certificate fixtures, so a local run in that environment does not establish a complete Node pass. The hosted suite exercises those listeners.
+
+The local-workflow regression suite covers cancellation, checkout ownership, local-edit conflicts, symlink refusal, completion-checkpoint recovery, default-branch readiness and migration file rechecks. Tests reject GitHub workflow-content, branch and PR writes, and confirm credential retries reuse the existing VM and runner.
+
+Package dry-run verification includes documentation and architecture artifacts, and excludes scratch files, private state and development dependencies.
 
 ## Verification limits
 

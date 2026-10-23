@@ -20,7 +20,7 @@
       "id": "cli",
       "type": "backend",
       "label": "BoxCI CLI",
-      "sublabel": "Engine + official adapters",
+      "sublabel": "Setup + local workflow edits",
       "pos": [330, 60],
       "size": [200, 80]
     },
@@ -28,7 +28,7 @@
       "id": "repository",
       "type": "cloud",
       "label": "GitHub repository",
-      "sublabel": "Workflow PR + secret + pool",
+      "sublabel": "Workflows + secret + pool",
       "pos": [760, 60],
       "size": [220, 80]
     },
@@ -101,7 +101,7 @@
       "id": "configure",
       "from": "cli",
       "to": "repository",
-      "label": "gh: configure + open PR",
+      "label": "gh: runners + CI settings",
       "variant": "security"
     },
     {
@@ -165,7 +165,7 @@
       "title": "Setup stays local",
       "items": [
         "Official InstaBox + GitHub sign-ins; account, VM and dedicated-label checks before changes.",
-        "CLI installs the runner service, writes the pool variable and CI secret, and opens a workflow PR."
+        "CLI installs runners and CI settings; workflow changes stay local for review, commit and push."
       ]
     },
     {

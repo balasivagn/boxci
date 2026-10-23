@@ -18,9 +18,9 @@ A complete record preserves the existing integration. A bare repository variable
 
 ## Recovery
 
-The project lock prevents concurrent setup writes. Checkpoints are saved after VM creation, runner installation, workflow upload, credential installation and PR creation. A retry checks which resources already exist. Owned VMs can be recovered after a lost create response. A registered pending runner must prove its name/repository and active service in its recorded VM before being adopted. Unregistered partial directories are never overwritten; the error identifies the next inspection step.
+The project lock prevents concurrent setup writes. Checkpoints are saved after VM creation, runner installation, local workflow creation and credential installation. A retry checks which resources already exist. Owned VMs can be recovered after a lost create response. A registered pending runner must prove its name/repository and active service in its recorded VM before being adopted. Unregistered partial directories are never overwritten; the error identifies the next inspection step.
 
-Credential values are deliberately not checkpointed. An orphan key identifier is retained and can be retired on reviewed retry. PR failures reuse the uploaded workflow and installed secret. Renewal saves pending identifiers, installs the new key first, and retires recorded old keys afterwards.
+Credential values are deliberately not checkpointed. An orphan key identifier is retained and can be retired on reviewed retry. Failures after secret delivery reuse the installed secret and local workflow. Renewal saves pending identifiers, installs the new key first, and retires recorded old keys afterwards.
 
 ## Daily use
 

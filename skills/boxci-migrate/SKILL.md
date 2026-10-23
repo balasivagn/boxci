@@ -8,7 +8,7 @@ description: >-
 
 # BoxCI workflow migration
 
-BoxCI provisions runners with `boxci init` (GitHub secret, pool variable, optional `boxci.yml` PR). To **retarget existing workflows** instead of only using the starter workflow, run **`boxci migrate`** from the **target repository checkout** (same machine that ran init).
+BoxCI provisions runners with `boxci init` (GitHub secret, pool variable, local `boxci.yml` workflow). To **retarget existing workflows** instead of only using the starter workflow, run **`boxci migrate`** from the **target repository checkout** (same machine that ran init).
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ It **edits workflow files locally**:
 - Adds a `boxci-wake` job (hosted Ubuntu, pool wake, same logic as `boxci.yml`).
 - For each selected job: `needs: boxci-wake` (merged with existing `needs`) and `runs-on: ${{ fromJSON(needs.boxci-wake.outputs.runner) }}`.
 
-Then: **review `git diff`**, commit, and push (or open your own PR).
+Then: **review `git diff`** and leave the changes locally. `init` and `migrate` create no Git branch, commit, push or PR. The user publishes through their normal process unless they explicitly ask the agent to do so.
 
 ## One-shot with init
 

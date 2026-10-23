@@ -17,7 +17,7 @@ const help = `boxci v${version} — BoxCI: GitHub Actions on InstaBox (not boxci
 Install globally from anywhere. Run init and migrate from the application
 checkout whose GitHub Actions you want to configure.
 
-  boxci init                  Detect sign-ins, review one setup plan, finish setup
+  boxci init                  Set up runners and leave a local workflow diff
   boxci status                Pool, VM states, runners and recent CI
   boxci doctor                Explain setup, account and credential problems
   boxci auth renew            Review and rotate the repository CI credential
@@ -187,6 +187,10 @@ try {
         );
       if (result.pr && !result.pr.merged)
         console.log(`\nCI migration awaits merge: ${result.pr.url}`);
+      if (result.workflow_published === false)
+        console.log(
+          `\nWorkflow changes are local: review, commit, and push ${result.workflow_path}.`,
+        );
       if (result.history_error)
         console.error("History unavailable: " + result.history_error);
     } else if (command === "doctor") {
@@ -200,9 +204,12 @@ try {
       console.log(result.message || "Migration applied.");
     else
       console.log(
-        result.pr_url
-          ? `\n${output.paint("green", "✓ Ready:")} ${result.pr_url}\nboxci status · boxci migrate · boxci dashboard`
-          : result.message || "Done.",
+        result.workflow_delivery === "local"
+          ? result.message ||
+              "Workflow changes are local. Review git diff, commit, and push."
+          : result.pr_url
+            ? `\n${output.paint("green", "✓ Ready:")} ${result.pr_url}\nboxci status · boxci migrate · boxci dashboard`
+            : result.message || "Done.",
       );
   }
 } catch (error) {
