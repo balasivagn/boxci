@@ -2,6 +2,7 @@
 
 - Provider browser auth is delegated to the official InstaBox CLI. The app never reads or duplicates its credential store. GitHub auth remains in `gh`.
 - A local CLI API-key environment uses the official InstaBox SDK for VM operations; `Sandbox.connect(..., {resume:false})` is used for passive connections. Credentials are never sent to the browser.
+- Local HTTPS uses Node's configured CA roots plus the operating system's trusted roots, including configured extra CA certificates. Certificate and hostname verification remain enabled. BoxCI does not install certificates, change the system trust store or retry cloud mutations after TLS failures.
 - New CI keys have only `machines:read` and `machines:write`, expire after 30 days, and are validated against the selected account/VM before secret transfer. These scopes cover command execution across the whole account. They do not provide per-VM isolation.
 - Values travel through process stdin or environment, never shell arguments, logs or saved configuration. Local checkpoints contain only resource and key identifiers/expiry. Files use private permissions and atomic replacement.
 - Account changes are refused before setup mutations. A dedicated label must resolve exactly to the reviewed pool, with distinct VM IDs and runner names. Provider names are checked before executing setup scripts.

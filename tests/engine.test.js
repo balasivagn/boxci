@@ -293,6 +293,56 @@ test("flat CLI key response works for setup and credential renewal", async () =>
   assert.equal(db.runners.length, 1);
   assert.equal(JSON.stringify(db.project).includes("ibk_"), false);
 });
+test("certificate validation failure resumes the same VM and runner at full quota and retires only the recorded key after delivery", async () => {
+  const { app, db, provider, github } = fixture();
+  provider.validateKey = async () => {
+    const error = new Error("GET /v1/machines/fixture failed: fetch failed");
+    error.code = "network_error";
+    error.cause = Object.assign(new Error("certificate chain"), {
+      code: "SELF_SIGNED_CERT_IN_CHAIN",
+    });
+    throw error;
+  };
+  await assert.rejects(app.init(options), /fetch failed/);
+  assert.equal(db.project.status, "credential_pending");
+  assert.equal(db.project.key_id, "key_fixture_1");
+  assert.equal(db.secrets.size, 0);
+  assert.equal(
+    db.calls.some((c) => c.startsWith("keys rm")),
+    false,
+  );
+  const savedPool = structuredClone(db.project.pool);
+  provider.usage = async () => ({ limits: { maxMachines: 1 } });
+  provider.validateKey = async (_, account, machineId) => {
+    assert.equal(account, 7);
+    assert.equal(machineId, savedPool[0].machine_id);
+  };
+  const transfer = github.secret;
+  github.secret = async (...args) => {
+    assert.equal(
+      db.calls.some((c) => c.startsWith("keys rm")),
+      false,
+    );
+    return transfer(...args);
+  };
+  db.calls = [];
+  const plan = await app.plan(options);
+  assert.equal(plan.count, 0);
+  assert.deepEqual(plan.pool, savedPool);
+  await app.init(options);
+  assert.deepEqual(db.project.pool, savedPool);
+  assert.equal(db.machines.length, 1);
+  assert.equal(db.runners.length, 1);
+  assert.equal(db.calls.includes("create"), false);
+  assert.equal(db.calls.includes("exec"), false);
+  assert.equal(
+    db.calls.some((c) => c.startsWith("wake:")),
+    false,
+  );
+  assert.ok(db.calls.includes("keys rm key_fixture_1"));
+  assert.equal(db.project.status, "awaiting_merge");
+  assert.equal(JSON.stringify(db.project).includes("ibk_"), false);
+});
 test("CLI response containing only a secret fetches metadata by the checkpointed request name", async () => {
   const { app, db, provider } = fixture();
   const create = provider.createKey;
@@ -665,7 +715,9 @@ test("native provider reuses auth and falls back to bundled official CLI without
   });
   assert.deepEqual(await p.authenticate(), { userId: 7, login: "developer" });
   assert.equal(calls[1][0], process.execPath);
-  assert.ok(calls[1][1][0].endsWith("instabox.mjs"));
+  assert.equal(calls[1][1][0], "--import");
+  assert.ok(calls[1][1][1].endsWith("/src/certificate-preload.js"));
+  assert.ok(calls[1][1][2].endsWith("instabox.mjs"));
   assert.equal(
     calls.some((c) => c[1].includes("login")),
     false,

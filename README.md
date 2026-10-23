@@ -5,7 +5,7 @@
 **GitHub Actions runners on your own InstaBox VMs.<br>They wake up for CI and pause again when idle.**
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Node >= 22](https://img.shields.io/badge/node-%3E%3D22-339933.svg?logo=node.js&logoColor=white)](package.json)
+[![Node 22.19+ / 24.5+](https://img.shields.io/badge/node-22.19%2B%20%2F%2024.5%2B-339933.svg?logo=node.js&logoColor=white)](package.json)
 [![npm version](https://img.shields.io/npm/v/@balasivagn/boxci.svg)](https://www.npmjs.com/package/@balasivagn/boxci)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
@@ -53,7 +53,7 @@ Your agent handles the commands; you complete any official browser sign-in and a
 
 ## Quick start
 
-You need Node.js 22+, Git, admin access to a GitHub repository, and an InstaBox account with room for one more VM. See [full requirements](#requirements).
+You need Node.js 22.19+ (22.x) or 24.5+, Git, admin access to a GitHub repository, and an InstaBox account with room for one more VM. See [full requirements](#requirements).
 
 **1. Install the CLI** from any directory:
 
@@ -203,7 +203,7 @@ BoxCI is a young project and it tries to be precise about what it does. The deta
 
 <br>
 
-- Node.js **22 or newer**, npm, Git and access to GitHub.
+- Node.js **22.19+ (22.x) or 24.5+**, npm, Git and access to GitHub.
 - A GitHub.com repository where you have **admin access**, with Actions enabled.
 - An InstaBox account with capacity for at least one additional VM, or an existing verified CI pool. Paused or stopped VMs still count toward quota.
 - A terminal for the official GitHub and InstaBox sign-in flows. Existing sessions are reused. BoxCI bundles the official InstaBox CLI as a fallback and can install a checksum-verified GitHub CLI privately when it is missing.
@@ -271,7 +271,7 @@ Runner service readiness does not prove GitHub connectivity. Fallback is chosen 
 
 <br>
 
-- BoxCI is at **v0.1.3**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
+- BoxCI is at **v0.1.4**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
 - Commands in this README use a POSIX shell. Native Linux and Windows bootstrap and fresh-account authentication still need verification. Details are in [validation coverage](docs/VALIDATION.md).
 - There is no automatic uninstall. Cleanup steps are in [stop using BoxCI](docs/OPERATIONS.md#stop-using-boxci).
 
@@ -325,7 +325,7 @@ npm pack --dry-run
   ```sh
   mkdir -p dist
   npm run pack:local
-  npm install --global ./dist/balasivagn-boxci-0.1.3.tgz
+  npm install --global ./dist/balasivagn-boxci-0.1.4.tgz
   ```
 
 - More: [developer experience contract](docs/DEVELOPER_EXPERIENCE.md) · [design tokens](docs/DESIGN.md)

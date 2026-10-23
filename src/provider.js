@@ -3,6 +3,7 @@ import { APP_ID } from "./brand.js";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { run } from "./process.js";
+import { configureCertificateTrust } from "./certificates.js";
 const require = createRequire(import.meta.url);
 const bundled = join(
   dirname(require.resolve("instabox/package.json")),
@@ -15,6 +16,7 @@ export class Provider {
     environment = process.env,
     interactive = process.stdin.isTTY,
   } = {}) {
+    configureCertificateTrust();
     this.interactive = interactive;
     this.exec = exec;
     this.env = environment;
@@ -25,10 +27,19 @@ export class Provider {
       return await this.exec("instabox", args, { env: this.env, ...options });
     } catch (e) {
       if (e.code !== "ENOENT") throw e;
-      return this.exec(process.execPath, [bundled, ...args], {
-        env: this.env,
-        ...options,
-      });
+      return this.exec(
+        process.execPath,
+        [
+          "--import",
+          new URL("./certificate-preload.js", import.meta.url).href,
+          bundled,
+          ...args,
+        ],
+        {
+          env: this.env,
+          ...options,
+        },
+      );
     }
   }
   async json(args, options = {}) {

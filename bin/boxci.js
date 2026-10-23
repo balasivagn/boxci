@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import {
+  configureCertificateTrust,
+  certificateErrorMessage,
+} from "../src/certificates.js";
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
 import { App } from "../src/engine.js";
@@ -84,6 +88,7 @@ try {
     console.log(help);
     process.exit(0);
   }
+  configureCertificateTrust();
   const opts = { ...values, dryRun: values["dry-run"] };
   terminal = new Terminal({ plain: values.json || values["no-color"] });
   output = new Terminal({
@@ -205,6 +210,8 @@ try {
   const tone = /^(Setup cancelled|Cancelled\.)/i.test(error.message)
     ? "dim"
     : "red";
-  console.error(terminal.paint(tone, "boxci: ") + redact(error.message));
+  console.error(
+    terminal.paint(tone, "boxci: ") + redact(certificateErrorMessage(error)),
+  );
   process.exitCode = 1;
 }
