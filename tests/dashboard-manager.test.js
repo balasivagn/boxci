@@ -50,7 +50,8 @@ async function fixture(t) {
   });
   const command = async (action = "start") => {
     const result = await exec(process.execPath, [controller, action], {
-      env: { ...process.env, BOXCI_HOME: directory },
+      env: { ...process.env, BOXCI_HOME: "." },
+      cwd: directory,
       timeout: 15000,
     });
     assert.equal(result.stderr, "");

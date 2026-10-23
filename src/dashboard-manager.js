@@ -8,7 +8,7 @@ import {
   lstat,
 } from "node:fs/promises";
 import { constants } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
@@ -41,8 +41,8 @@ export class DashboardManager {
     browser = openBrowser,
     timeout = 90000,
   } = {}) {
-    this.directory = directory;
-    this.environment = environment;
+    this.directory = resolve(directory);
+    this.environment = { ...environment, BOXCI_HOME: this.directory };
     this.worker = worker;
     this.browser = browser;
     this.timeout = timeout;
