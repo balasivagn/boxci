@@ -27,36 +27,14 @@ The “GitHub build job” box represents workflow scheduling; its steps execute
 
 Service readiness does not prove GitHub connectivity. Hosted fallback is chosen before assignment and cannot rescue a build already queued on a disconnected self-hosted runner. VMs retain normal idle suspension. There is no always-on BoxCI server, keepalive process or webhook service.
 
-## Keep the diagram in the repository
+## Updating the diagram
 
-The editable source is [architecture/boxci.architecture.json](architecture/boxci.architecture.json). The source map above connects its components to the current code. The initial public snapshot omits revision-pinned diagram links so it does not depend on private development history. This is a runtime overview; individual SDK calls, renewal steps and migration edits are summarized in the source map above.
+Edit [the diagram source](architecture/boxci.architecture.json) when the architecture changes, then regenerate the HTML with [Archify](https://github.com/tt-a1i/archify). Export the README image with:
 
-The artifacts were generated with [Archify 3.2.0](https://github.com/tt-a1i/archify/tree/25cf37080fc8b1dbe758a4efc3935b55f3327083), tool revision `25cf37080fc8b1dbe758a4efc3935b55f3327083`. Archify is a documentation tool, not a BoxCI runtime dependency. Its generated HTML includes its viewer and fonts, so it can be opened offline. The SVG is a static light-theme export of the same geometry.
+```sh
+node docs/architecture/export-svg.mjs
+```
 
-After an architecture change:
+Review and commit the JSON, HTML and SVG together, along with any source-map changes.
 
-1. Trace the changed behavior in source. Update the JSON components, connections and source map above. For revision-pinned interactive source links, add `meta.repository` and component `sources` using an existing public commit, then include `--repo-root .` in the Archify command to verify that evidence.
-2. Use the pinned Archify skill package, setting `ARCHIFY_CLI` to its `bin/archify.mjs`. From the BoxCI repository root, generate into ignored scratch space so receipts containing local paths stay private:
-
-   ```sh
-   ARCHIFY_CLI=/path/to/archify/bin/archify.mjs
-   mkdir -p .orca-scratch/architecture-build
-   node "$ARCHIFY_CLI" finalize architecture \
-     docs/architecture/boxci.architecture.json \
-     .orca-scratch/architecture-build/boxci.html \
-     --quality showcase \
-     --out-dir .orca-scratch/architecture-build/review --json
-   ```
-
-3. After the checks pass, copy the portable HTML and regenerate the README image. The exporter uses Node.js built-ins and keeps the Archify-rendered geometry:
-
-   ```sh
-   cp .orca-scratch/architecture-build/boxci.html docs/architecture/boxci.html
-   node docs/architecture/export-svg.mjs
-   ```
-
-4. Inspect the SVG and interactive HTML, then run the documented repository checks. Commit the JSON, HTML, SVG and any source-map edits together. Keep browser profiles, receipts, screenshots and tool downloads in `.orca-scratch/`.
-
-The artifact passed Archify's showcase layout, delivery and strict artifact checks. The source map was checked against the code, and the static SVG was rendered and visually inspected. The automated browser gate could not complete because Chrome's DevTools pipe closed in this execution environment; interactive browser behavior has not been verified here.
-
-The bundled viewer retains Archify's [MIT license](architecture/LICENSE-Archify.txt). Embedded JetBrains Mono fonts include their SIL Open Font License in the HTML and SVG. Existing project and installer notices remain in place.
+The bundled Archify viewer retains its [MIT license](architecture/LICENSE-Archify.txt). Embedded JetBrains Mono fonts retain their SIL Open Font License notices in the HTML and SVG.

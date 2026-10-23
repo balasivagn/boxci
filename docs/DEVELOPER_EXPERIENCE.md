@@ -30,4 +30,4 @@ Status and dashboard are passive. Paused is a valid VM state; offline is a separ
 
 ## Distribution gates
 
-v0.1.0 is published to npm as `@balasivagn/boxci`; source and packed installs also work. Linux/Windows live bootstrap and fresh-account browser authentication require their own environment verification; injected tests do not substitute for those claims.
+BoxCI is distributed on npm as `@balasivagn/boxci`; source and packed installs also work. See [releasing](RELEASING.md) for the publication workflow. Linux/Windows live bootstrap and fresh-account browser authentication require their own environment verification; injected tests do not substitute for those claims.
