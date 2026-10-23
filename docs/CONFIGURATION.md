@@ -51,6 +51,14 @@ If both names exist without a recorded choice, `BOXCI_POOL` wins. A malformed or
 
 A complete local record lets `init` reuse its integration without replacing services, keys or workflows. A repository variable alone identifies **pool members**, not a completed integration: it cannot recover a custom secret name, workflow path, PR, test command or key expiry. Setup can reuse verified VMs but may still plan a workflow PR and credential setup. It refuses to overwrite an existing starter workflow. On a new machine, restore your private project record when available; otherwise inspect `init --dry-run` before approving any setup. If the chosen secret already exists, explicit `--secret NAME` is required even for the preview.
 
+### Using a different signed-in InstaBox account
+
+When the saved pool belongs to another account, `init` reuses the current valid sign-in and offers a fresh setup plan. `boxci init --dry-run` previews it; normal `init` asks before applying, and `--yes` approves the displayed plan in automation. Declining or previewing leaves all records and resources unchanged.
+
+On approval, BoxCI saves the complete previous record under `projects/archive/<repository>/<account-id>/<revision>.json` before replacing the active local record. The plan displays the exact archive path, which is also retained as `previous_project.archive_path` in the new record. Legacy source records remain in place. Archive files have the same private permissions as active records; keep them outside source control.
+
+The fresh pool uses account-specific runner names, a dedicated routing label, `BOXCI_POOL_<suffix>`, `BOXCI_API_KEY_<suffix>` and `.github/workflows/boxci-<suffix>.yml`. An explicit `--secret` must name an unused secret. Existing VMs, runner registrations, secrets, variables and workflows are preserved. Review the new workflow PR alongside the previous workflow: both can run until you separately retire the old integration. Switching accounts does not transfer or delete provider resources. Wake, growth and credential renewal still require the active record's account.
+
 ## Runner labels and workflow selection
 
 GitHub schedules by `runs-on` labels, not VM name. Every member shares a dedicated custom label. The generated and migrated build jobs use:

@@ -218,6 +218,21 @@ class PoolRoutingTest(unittest.TestCase):
             self.assertEqual(self.route({'bad':'untrusted'}, trusted=False), ['ubuntu-24.04'])
             check.assert_not_called()
 
+    def test_account_scoped_runner_names_keep_exact_vm_and_service_checks(self):
+        self.pool = [dict(machine_id=MACHINE_ID,
+                          runner_name='boxci-0123456789-01',
+                          expected_name='boxci-0123456789-01')]
+        with patch.object(wake, 'wake') as check:
+            self.assertEqual(self.route(), ['self-hosted', 'Linux', 'dedicated-pool'])
+            self.assertEqual(check.call_args.kwargs['runner_name'], self.pool[0]['runner_name'])
+            self.assertEqual(check.call_args.kwargs['expected_name'], self.pool[0]['expected_name'])
+
+    def test_previous_account_pool_unavailable_to_key_falls_back_without_mutation(self):
+        with patch.object(wake, 'request', side_effect=wake.ApiError(404, 'machine_not_found')) as api:
+            self.assertEqual(self.route(), ['ubuntu-24.04'])
+            self.assertEqual(api.call_count, len(self.pool))
+            self.assertTrue(all(call.args[0] == 'GET' for call in api.call_args_list))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,9 +5,10 @@ import {
   rename,
   open,
   unlink,
+  link,
 } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { legacyStateDirs } from "./brand.js";
 export function dataDir() {
@@ -81,15 +82,56 @@ export async function readProject(repo) {
   }
   return null;
 }
-export async function saveProject(project) {
+export function projectRevision(project) {
+  return createHash("sha256").update(JSON.stringify(project)).digest("hex");
+}
+export function archiveFileFor(project) {
+  if (!Number.isInteger(project.account?.userId))
+    throw new Error("Cannot archive a project without its account identity.");
   const file = fileFor(project.repo);
+  return join(
+    dirname(file),
+    "archive",
+    basename(file, ".json"),
+    String(project.account.userId),
+    projectRevision(project) + ".json",
+  );
+}
+export async function archiveProject(project) {
+  const file = archiveFileFor(project);
+  await writeProjectFile(file, project, true);
+  return file;
+}
+export async function saveProject(project) {
+  await writeProjectFile(fileFor(project.repo), project);
+}
+async function writeProjectFile(file, project, preserve = false) {
   await mkdir(dirname(file), { recursive: true, mode: 0o700 });
   const temp = file + "." + randomUUID();
   await writeFile(temp, JSON.stringify(project, null, 2) + "\n", {
     mode: 0o600,
     flag: "wx",
   });
-  await rename(temp, file);
+  try {
+    if (preserve) {
+      try {
+        await link(temp, file);
+      } catch (e) {
+        if (e.code !== "EEXIST") throw e;
+        if (
+          projectRevision(await readProjectFile(file)) !==
+          projectRevision(project)
+        )
+          throw new Error(
+            "Archived project differs; the previous record was preserved.",
+          );
+      }
+    } else await rename(temp, file);
+  } finally {
+    await unlink(temp).catch((e) => {
+      if (e.code !== "ENOENT") throw e;
+    });
+  }
 }
 export async function locked(repo, fn) {
   const file = fileFor(repo) + ".lock";

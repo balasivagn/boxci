@@ -4,10 +4,12 @@ import { join } from "node:path";
 import { App, validatePool, quotaPlan } from "../src/engine.js";
 import { Provider } from "../src/provider.js";
 import { redact } from "../src/process.js";
+import { archiveFileFor } from "../src/store.js";
 const id = (char) => "m_" + char.repeat(26);
 function fixture() {
   const db = {
     project: null,
+    archives: [],
     machines: [],
     runners: [],
     secrets: new Set(),
@@ -23,6 +25,11 @@ function fixture() {
   };
   const storage = {
     readProject: async () => structuredClone(db.project),
+    archiveFileFor,
+    archiveProject: async (p) => {
+      db.archives.push(structuredClone(p));
+      return archiveFileFor(p);
+    },
     saveProject: async (p) => {
       db.project = structuredClone(p);
     },
@@ -133,12 +140,17 @@ function fixture() {
         db.variables.set(opts.body.name, opts.body.value);
         return {};
       }
-      if (path.includes("/pulls?")) return db.prs;
+      if (path.includes("/pulls?")) {
+        const head = new URLSearchParams(path.split("?")[1]).get("head");
+        return db.prs.filter((pr) => head.endsWith(":" + pr.branch));
+      }
       if (path.endsWith("/pulls") && opts.method === "POST") {
         if (db.failPR) throw new Error("PR response lost");
         const pr = {
-          number: 1,
-          html_url: "https://github.com/acme/project/pull/1",
+          number: db.prs.length + 1,
+          html_url:
+            "https://github.com/acme/project/pull/" + (db.prs.length + 1),
+          branch: opts.body.head,
           state: "open",
           merged: false,
           draft: false,
@@ -155,6 +167,7 @@ function fixture() {
     db,
     provider,
     github,
+    storage,
     app: new App({ provider, github, storage }),
   };
 }
@@ -269,6 +282,152 @@ test("account changed after review blocks every mutation", async () => {
   );
   assert.equal(db.project, null);
   assert.equal(db.machines.length, 0);
+});
+async function switchedAccountFixture() {
+  const f = fixture();
+  await f.app.init(options);
+  const old = structuredClone(f.db.project);
+  f.db.identity = { userId: -8, login: "current@example.test" };
+  f.db.machines = [];
+  f.db.calls = [];
+  return { ...f, old };
+}
+test("account mismatch previews a fresh current-account setup and cancellation preserves the old record", async () => {
+  const { app, db, old } = await switchedAccountFixture();
+  const plan = await app.init({ ...options, dryRun: true });
+  assert.deepEqual(plan.account, db.identity);
+  assert.equal(plan.source, "new-pool");
+  assert.deepEqual(plan.pool, []);
+  assert.notEqual(plan.label, old.label);
+  assert.notEqual(plan.secret, old.secret);
+  assert.notEqual(plan.pool_variable, old.pool_variable);
+  assert.notEqual(plan.workflow_path, old.workflow_path);
+  assert.equal(plan.previous_project.archive_path, archiveFileFor(old));
+  assert.match(plan.actions.join("\n"), /fresh pool as current@example.test/);
+  await assert.rejects(
+    app.init({ ...options, yes: false }, async () => false),
+    /cancelled/,
+  );
+  assert.deepEqual(db.project, old);
+  assert.deepEqual(db.archives, []);
+  assert.ok(db.calls.every((c) => c === "GET"));
+});
+test("approved fresh setup archives the full old record and isolates GitHub resources and runner names", async () => {
+  const { app, db, old } = await switchedAccountFixture();
+  const oldVariables = new Map(db.variables);
+  const oldFiles = new Map(db.files);
+  const oldRunners = structuredClone(db.runners);
+  const state = await app.init(options);
+  assert.deepEqual(db.archives, [old]);
+  assert.deepEqual(state.account, db.identity);
+  assert.notEqual(state.pool[0].runner_name, old.pool[0].runner_name);
+  assert.equal(state.key_id, "key_fixture_2");
+  assert.notEqual(state.pr_url, old.pr_url);
+  assert.equal(state.previous_project.archive_path, archiveFileFor(old));
+  for (const [k, v] of oldVariables) assert.equal(db.variables.get(k), v);
+  for (const [k, v] of oldFiles) assert.equal(db.files.get(k), v);
+  assert.deepEqual(db.runners.slice(0, oldRunners.length), oldRunners);
+  assert.ok(db.secrets.has(old.secret));
+  const source = db.files.get(state.branch + ":" + state.workflow_path);
+  assert.ok(source.includes(state.pool_variable));
+  assert.ok(source.includes(state.secret));
+  assert.ok(source.includes(state.label));
+  await app.init(options);
+  assert.deepEqual(db.archives, [old]);
+  assert.equal(db.keys, 2);
+  await app.add({ ...options, count: 1 });
+  assert.ok(
+    db.project.pool.every((p) =>
+      p.runner_name.startsWith(state.runner_prefix + "-"),
+    ),
+  );
+});
+test("fresh setup failure resumes its new checkpoints without losing the archived pool", async () => {
+  const { app, db, old } = await switchedAccountFixture();
+  db.failPR = true;
+  await assert.rejects(app.init(options), /response lost/);
+  assert.deepEqual(db.archives, [old]);
+  assert.deepEqual(db.project.account, db.identity);
+  const pool = structuredClone(db.project.pool);
+  db.failPR = false;
+  await app.init(options);
+  assert.deepEqual(db.project.pool, pool);
+  assert.deepEqual(db.archives, [old]);
+  assert.equal(db.keys, 2);
+  assert.equal(db.machines.length, 1);
+});
+test("archive failure stops fresh setup before saving or mutating resources", async () => {
+  const { app, db, storage, old } = await switchedAccountFixture();
+  storage.archiveProject = async () => {
+    throw new Error("archive unavailable");
+  };
+  await assert.rejects(app.init(options), /archive unavailable/);
+  assert.deepEqual(db.project, old);
+  assert.ok(db.calls.every((c) => c === "GET"));
+});
+test("account or saved-record changes during fresh setup review prevent archiving and mutations", async () => {
+  for (const change of ["account", "record"]) {
+    const { app, db, old } = await switchedAccountFixture();
+    await assert.rejects(
+      app.init({ ...options, yes: false }, async () => {
+        if (change === "account") db.identity = old.account;
+        else db.project.status = "changed";
+        return true;
+      }),
+      /changed after review/,
+    );
+    assert.deepEqual(db.archives, []);
+    assert.ok(db.calls.every((c) => c === "GET"));
+  }
+});
+test("fresh setup refuses old labels, old secrets and resources appearing during review", async () => {
+  const { app, db, old } = await switchedAccountFixture();
+  await assert.rejects(
+    app.init({ ...options, label: old.label }),
+    /dedicated label/,
+  );
+  await assert.rejects(
+    app.init({ ...options, secret: old.secret }),
+    /unused --secret/,
+  );
+  for (const collision of [
+    "label",
+    "runner",
+    "variable",
+    "secret",
+    "workflow",
+    "vm",
+  ]) {
+    const f = await switchedAccountFixture();
+    await assert.rejects(
+      f.app.init({ ...options, yes: false }, async (plan) => {
+        if (collision === "label")
+          f.db.runners.push({ name: "other", labels: [{ name: plan.label }] });
+        if (collision === "runner")
+          f.db.runners.push({ name: plan.runner_prefix + "-01", labels: [] });
+        if (collision === "variable")
+          f.db.variables.set(plan.pool_variable, "[]");
+        if (collision === "secret") f.db.secrets.add(plan.secret);
+        if (collision === "workflow")
+          f.db.files.set(plan.base + ":" + plan.workflow_path, "existing");
+        if (collision === "vm")
+          f.db.machines.push({ name: plan.runner_prefix + "-01" });
+        return true;
+      }),
+      /resources changed after review/,
+    );
+    assert.deepEqual(f.db.project, f.old);
+    assert.deepEqual(f.db.archives, []);
+    assert.ok(f.db.calls.every((c) => c === "GET"));
+  }
+  assert.deepEqual(db.project, old);
+});
+test("wake and growth still refuse to operate the saved pool under another account", async () => {
+  const { app, db, old } = await switchedAccountFixture();
+  await assert.rejects(app.wake(options), /saved pool belongs to/);
+  await assert.rejects(app.add(options), /saved pool belongs to/);
+  assert.deepEqual(db.project, old);
+  assert.deepEqual(db.calls, []);
 });
 test("adding a runner updates the CI manifest, not an unused local-only list", async () => {
   const { app, db } = fixture();

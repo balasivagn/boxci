@@ -135,7 +135,10 @@ export class App {
     this.storage = storage;
     this.emit = emit;
   }
-  async context(repo, { authenticate = false, ...options } = {}) {
+  async context(
+    repo,
+    { authenticate = false, allowAccountMismatch = false, ...options } = {},
+  ) {
     repo = await this.github.repo(repo);
     const identity = authenticate
       ? await this.provider.authenticate(options)
@@ -144,17 +147,34 @@ export class App {
     const project = await this.storage.readProject(repo);
     if (project && project.repo.toLowerCase() !== repo.toLowerCase())
       throw new Error("Saved project repository mismatch; no action sent.");
-    if (project && project.account.userId !== identity.userId)
+    if (
+      project &&
+      project.account.userId !== identity.userId &&
+      !allowAccountMismatch
+    )
       throw new Error(
-        `Account changed. This pool belongs to InstaBox ${project.account.login}. Sign back in; no VM action was sent.`,
+        `Signed in to InstaBox as ${identity.login}; the saved pool belongs to ${project.account.login}. Run boxci init to review a fresh setup for this account, or sign in to the pool's account to use it. No VM action was sent.`,
       );
     return { repo, identity, project };
   }
   async plan(options = {}) {
-    const { repo, identity, project } = await this.context(options.repo, {
+    const {
+      repo,
+      identity,
+      project: saved,
+    } = await this.context(options.repo, {
       ...options,
       authenticate: true,
+      allowAccountMismatch: true,
     });
+    const fresh = !!saved && saved.account.userId !== identity.userId;
+    const project = fresh ? null : saved;
+    const namespace = fresh
+      ? createHash("sha256")
+          .update(`${repo.toLowerCase()}:${identity.userId}`)
+          .digest("hex")
+          .slice(0, 10)
+      : null;
     const [machines, usage, runners, details] = await Promise.all([
       this.provider.list(),
       this.provider.usage(),
@@ -166,9 +186,18 @@ export class App {
         "Repository admin access is needed to register runners and install the CI secret.",
       );
     const previous = project;
-    let poolVariable = previous?.pool_variable || "BOXCI_POOL";
+    let poolVariable =
+      previous?.pool_variable ||
+      (fresh ? `BOXCI_POOL_${namespace.toUpperCase()}` : "BOXCI_POOL");
     let importedVariable = await this.github.variable(repo, poolVariable);
-    if (!previous?.pool_variable && importedVariable === null) {
+    if (
+      fresh &&
+      (importedVariable !== null || poolVariable === saved.pool_variable)
+    )
+      throw new Error(
+        `${poolVariable} already exists. Inspect this account's setup before retrying; no resources were changed.`,
+      );
+    if (!fresh && !previous?.pool_variable && importedVariable === null) {
       const legacyVariable = await this.github.variable(
         repo,
         "INSTABOX_CI_POOL",
@@ -211,7 +240,11 @@ export class App {
       previous?.label ||
       options.label ||
       inferredLabel ||
-      "boxci-" + createHash("sha256").update(repo).digest("hex").slice(0, 10);
+      "boxci-" +
+        (namespace ||
+          createHash("sha256").update(repo).digest("hex").slice(0, 10));
+    if (!labelPattern.test(label) || generic.has(label.toLowerCase()))
+      throw new Error("A dedicated custom pool label is required.");
     if (pool && !incomplete) validatePool(pool, machines, runners, label);
     const count = options.count === undefined ? 1 : Number(options.count);
     const missing = incomplete
@@ -223,7 +256,25 @@ export class App {
         )
       : count;
     const expectedPrefix =
-      "boxci-" + createHash("sha256").update(repo).digest("hex").slice(0, 8);
+      previous?.runner_prefix ||
+      "boxci-" +
+        (namespace ||
+          createHash("sha256").update(repo).digest("hex").slice(0, 8));
+    if (
+      fresh &&
+      (machines.some((m) => m.name.startsWith(expectedPrefix + "-")) ||
+        label.toLowerCase() === saved.label?.toLowerCase() ||
+        runners.some(
+          (r) =>
+            r.labels.some(
+              (l) => l.name.toLowerCase() === label.toLowerCase(),
+            ) ||
+            r.name.toLowerCase().startsWith(expectedPrefix.toLowerCase() + "-"),
+        ))
+    )
+      throw new Error(
+        "Fresh setup requires unused runner names and a dedicated label. Existing registrations were preserved.",
+      );
     const recorded = new Set(
       [...(project?.pool || []), ...(project?.pending || [])].map(
         (m) => m.machine_id,
@@ -273,18 +324,55 @@ export class App {
       throw new Error(
         'No unambiguous test command found. Re-run with --command "your install and test command".',
       );
-    const secret = previous?.secret || options.secret || defaults.secret;
+    const secret =
+      previous?.secret ||
+      options.secret ||
+      (fresh ? `BOXCI_API_KEY_${namespace.toUpperCase()}` : defaults.secret);
     if (!/^[A-Z][A-Z0-9_]{0,99}$/.test(secret))
       throw new Error("Invalid Actions secret name.");
     const secretExists = await this.github.hasSecret(repo, secret);
+    if (fresh && (secretExists || secret === saved.secret))
+      throw new Error(
+        `${secret} belongs to an existing setup or already exists. Choose an unused --secret name for the current account.`,
+      );
     if (secretExists && !previous && !options.secret)
       throw new Error(
         `${secret} already exists. Choose --secret ${secret} to explicitly reuse it, or choose a new name. Its account/contents cannot be read from GitHub.`,
       );
+    const workflowPath =
+      previous?.workflow_path ||
+      (fresh ? `.github/workflows/boxci-${namespace}.yml` : defaults.workflow);
+    if (
+      fresh &&
+      (workflowPath === saved.workflow_path ||
+        (await this.github.content(repo, workflowPath, base)))
+    )
+      throw new Error(
+        `${workflowPath} already belongs to a setup. Its workflow was preserved.`,
+      );
     const result = {
       version: 1,
       repo,
+      project_revision: saved ? store.projectRevision(saved) : null,
       account: identity,
+      ...(previous?.runner_prefix
+        ? { runner_prefix: previous.runner_prefix }
+        : {}),
+      ...(fresh
+        ? {
+            previous_project: {
+              account: saved.account,
+              revision: store.projectRevision(saved),
+              archive_path: this.storage.archiveFileFor(saved),
+            },
+            runner_prefix: expectedPrefix,
+          }
+        : previous?.previous_project
+          ? {
+              previous_project: previous.previous_project,
+              runner_prefix: previous.runner_prefix,
+            }
+          : {}),
       managed_workflow: previous ? (previous.managed_workflow ?? false) : true,
       pool_variable: poolVariable,
       target_count: project?.target_count || pool?.length || count,
@@ -301,7 +389,7 @@ export class App {
       command,
       manager,
       managerVersion,
-      workflow_path: previous?.workflow_path || defaults.workflow,
+      workflow_path: workflowPath,
       branch: previous?.branch,
       pr_number: previous?.pr_number,
       pr_url: previous?.pr_url,
@@ -330,6 +418,12 @@ export class App {
               "Open a workflow PR. No automatic merge.",
             ],
     };
+    if (fresh)
+      result.actions.unshift(
+        `The saved pool belongs to InstaBox ${saved.account.login}. Set up a fresh pool as ${identity.login}.`,
+        `Preserve the previous project record at ${result.previous_project.archive_path}. Existing VMs, runners, credentials, variables and workflows stay in place.`,
+        `Use separate Actions variable ${poolVariable}, secret ${secret} and workflow ${workflowPath}. Review both workflows to avoid duplicate CI.`,
+      );
     return result;
   }
   async init(options = {}, approve = async () => false) {
@@ -345,13 +439,30 @@ export class App {
         throw new Error("InstaBox account changed after review.");
       if ((await this.github.api("user")).login !== plan.github_login)
         throw new Error("GitHub account changed after review.");
-      if (plan.adopt_only) {
-        await this.storage.saveProject(plan);
-        this.emit({ type: "adopted", project: plan });
-        return plan;
-      }
       const current = await this.storage.readProject(plan.repo);
-      const state = current || { ...plan, pool: plan.pool, pending: [] };
+      if (
+        (current ? store.projectRevision(current) : null) !==
+        plan.project_revision
+      )
+        throw new Error(
+          "Saved project changed after review. Run boxci init again; no setup changes were made.",
+        );
+      const { project_revision, ...setup } = plan;
+      if (plan.adopt_only) {
+        await this.storage.saveProject(setup);
+        this.emit({ type: "adopted", project: setup });
+        return setup;
+      }
+      const fresh = current && current.account.userId !== plan.account.userId;
+      if (fresh) {
+        await this.checkFreshResources(plan);
+        await this.storage.archiveProject(current);
+      }
+      const state = (fresh ? null : current) || {
+        ...setup,
+        pool: plan.pool,
+        pending: [],
+      };
       await this.storage.saveProject(state);
       await this.provision(state, state.target_count || plan.count);
       if (state.managed_workflow === false) {
@@ -361,6 +472,34 @@ export class App {
       } else await this.configure(state);
       return state;
     });
+  }
+  async checkFreshResources(plan) {
+    const [runners, variable, secretExists, source, machines] =
+      await Promise.all([
+        this.github.runners(plan.repo),
+        this.github.variable(plan.repo, plan.pool_variable),
+        this.github.hasSecret(plan.repo, plan.secret),
+        this.github.content(plan.repo, plan.workflow_path, plan.base),
+        this.provider.list(),
+      ]);
+    if (
+      variable !== null ||
+      secretExists ||
+      source ||
+      machines.some((m) => m.name.startsWith(plan.runner_prefix + "-")) ||
+      runners.some(
+        (r) =>
+          r.labels.some(
+            (l) => l.name.toLowerCase() === plan.label.toLowerCase(),
+          ) ||
+          r.name
+            .toLowerCase()
+            .startsWith(plan.runner_prefix.toLowerCase() + "-"),
+      )
+    )
+      throw new Error(
+        "Fresh setup resources changed after review. Run boxci init again; existing resources were preserved.",
+      );
   }
   async package(repo) {
     const downloads = await this.github.api(
@@ -388,8 +527,9 @@ export class App {
   }
   async provision(state, count) {
     const prefix =
+      state.runner_prefix ||
       "boxci-" +
-      createHash("sha256").update(state.repo).digest("hex").slice(0, 8);
+        createHash("sha256").update(state.repo).digest("hex").slice(0, 8);
     const target = count;
     const machines = await this.provider.list();
     const missing = Math.max(
