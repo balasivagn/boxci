@@ -238,3 +238,40 @@ test("invalid ports and records are rejected before launching or contacting a pr
     /valid local instance/,
   );
 });
+
+test("a different service on a stale control port cannot impersonate the dashboard or learn its control secret", async (t) => {
+  let captured = "";
+  const peer = net.createServer((socket) => {
+    socket.on("error", () => {});
+    socket.once("data", (data) => {
+      captured = data.toString();
+      const request = JSON.parse(captured);
+      socket.end(
+        JSON.stringify({
+          ok: true,
+          repo: request.repo,
+          instance: request.instance,
+          pid: request.pid,
+          version: "0.0.1",
+          origin: "http://127.0.0.1:1234",
+          nonce: request.nonce,
+          cleanup_pending: false,
+          mac: "0".repeat(64),
+        }) + "\n",
+      );
+    });
+  });
+  await new Promise((resolve) => peer.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => peer.close(resolve)));
+  const record = {
+    repo: "acme/project",
+    instance: "c".repeat(32),
+    pid: 10,
+    version: "0.0.1",
+    origin: "http://127.0.0.1:1234",
+    control_port: peer.address().port,
+    control_token: "a".repeat(64),
+  };
+  await assert.rejects(controlDashboard(record), /Cannot verify/);
+  assert.ok(!captured.includes(record.control_token));
+});

@@ -1,5 +1,10 @@
 import net from "node:net";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 import {
   lstat,
   mkdir,
@@ -104,7 +109,28 @@ export function validateDashboardRecord(record, repo) {
   protect(record.token);
   return record;
 }
+function signature(key, kind, payload) {
+  return createHmac("sha256", key)
+    .update(kind + "\n" + JSON.stringify(payload))
+    .digest("hex");
+}
+function validSignature(key, kind, payload, mac) {
+  if (typeof mac !== "string" || !/^[a-f0-9]{64}$/.test(mac)) return false;
+  return timingSafeEqual(
+    Buffer.from(mac, "hex"),
+    Buffer.from(signature(key, kind, payload), "hex"),
+  );
+}
+
 export function controlDashboard(record, action = "info", timeout = 3000) {
+  const nonce = randomBytes(32).toString("hex");
+  const request = {
+    action,
+    pid: record.pid,
+    repo: record.repo,
+    instance: record.instance,
+    nonce,
+  };
   return new Promise((resolve, reject) => {
     const socket = net.createConnection({
       host: "127.0.0.1",
@@ -122,11 +148,8 @@ export function controlDashboard(record, action = "info", timeout = 3000) {
     socket.once("connect", () =>
       socket.write(
         JSON.stringify({
-          action,
-          pid: record.pid,
-          repo: record.repo,
-          instance: record.instance,
-          token: record.control_token,
+          ...request,
+          mac: signature(record.control_token, "request", request),
         }) + "\n",
       ),
     );
@@ -137,7 +160,10 @@ export function controlDashboard(record, action = "info", timeout = 3000) {
       if (!input.includes("\n")) return;
       try {
         const result = JSON.parse(input.split("\n")[0]);
+        const { mac, ...payload } = result;
         if (
+          !validSignature(record.control_token, "response", payload, mac) ||
+          result.nonce !== nonce ||
           !result.ok ||
           result.instance !== record.instance ||
           result.repo !== record.repo ||
@@ -186,15 +212,20 @@ export async function runDashboardService(
     resolveClosed = resolve;
   });
   const connections = new Set();
-  const response = () => ({
-    ok: true,
-    repo,
-    instance,
-    pid: process.pid,
-    version,
-    origin: live.origin,
-  });
-  const stop = async (request) => {
+  const response = (nonce, cleanupPending = false) => {
+    const payload = {
+      ok: true,
+      repo,
+      instance,
+      pid: process.pid,
+      version,
+      origin: live.origin,
+      nonce,
+      cleanup_pending: cleanupPending,
+    };
+    return { ...payload, mac: signature(token, "response", payload) };
+  };
+  const stop = async (request, nonce) => {
     if (stopping) return;
     stopping = true;
     const controlClosed = new Promise((resolve) => control.close(resolve));
@@ -209,10 +240,7 @@ export async function runDashboardService(
       cleanupPending = true;
     }
     if (request)
-      request.end(
-        JSON.stringify({ ...response(), cleanup_pending: cleanupPending }) +
-          "\n",
-      );
+      request.end(JSON.stringify(response(nonce, cleanupPending)) + "\n");
     await controlClosed;
     resolveClosed();
   };
@@ -237,15 +265,13 @@ export async function runDashboardService(
       }
       if (
         !request ||
-        typeof request.token !== "string" ||
-        !/^[a-f0-9]{64}$/.test(request.token)
+        typeof request.nonce !== "string" ||
+        !/^[a-f0-9]{64}$/.test(request.nonce)
       )
         return socket.end(JSON.stringify({ ok: false }) + "\n");
-      const actual = Buffer.from(request.token);
-      const expected = Buffer.from(token);
+      const { mac, ...payload } = request;
       if (
-        actual.length !== expected.length ||
-        !timingSafeEqual(actual, expected) ||
+        !validSignature(token, "request", payload, mac) ||
         request.instance !== instance ||
         request.repo !== repo ||
         request.pid !== process.pid ||
@@ -253,8 +279,8 @@ export async function runDashboardService(
       )
         return socket.end(JSON.stringify({ ok: false }) + "\n");
       if (request.action === "info")
-        socket.end(JSON.stringify(response()) + "\n");
-      else stop(socket).catch(() => socket.destroy());
+        socket.end(JSON.stringify(response(request.nonce)) + "\n");
+      else stop(socket, request.nonce).catch(() => socket.destroy());
     });
   });
   try {
