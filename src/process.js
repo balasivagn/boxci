@@ -6,7 +6,8 @@ export function protect(value) {
 }
 export function redact(value) {
   let text = String(value ?? "");
-  for (const secret of secrets) text = text.replaceAll(secret, "[redacted]");
+  for (const secret of [...secrets].sort((a, b) => b.length - a.length))
+    text = text.replaceAll(secret, "[redacted]");
   return text.replace(
     /\b(?:ibk_|gh[pousr]_|github_pat_)[A-Za-z0-9_]+/g,
     "[redacted]",

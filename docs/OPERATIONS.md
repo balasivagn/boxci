@@ -59,6 +59,10 @@ boxci init
 
 Setup checkpoints completed stages and verifies recoverable resources. It refuses to replace existing runner registrations/directories. If it reports ambiguous leftovers, inspect the named resources before retrying. Do not delete the project record to force setup to start over.
 
+If an older release fails with **Provider key metadata missing or invalid**, update the CLI and rerun `init` for the same repository. The saved VM and runner are reused. Current releases checkpoint credential requests before creation and recover their metadata through the official CLI. Keys created by an older release without a recorded request are left untouched; inspect `instabox keys ls` before deciding whether an unused key should be retired.
+
+The terminal shows the target repository, saved runner names and active setup step. Colors and progress animation are enabled in interactive terminals; use `--no-color` to disable both, or `NO_COLOR=1` to disable colors. JSON and redirected output remain plain.
+
 A new machine or changed `BOXCI_HOME` may have no record. Restore the private per-repository record from your previous data directory when available, then verify the account and run `status`/`doctor`. A record includes integration details that the repository pool variable cannot reconstruct. Without it, review [pool discovery](CONFIGURATION.md#pool-discovery-and-recovery) and the setup dry run. An existing `BOXCI_API_KEY` requires explicit `--secret BOXCI_API_KEY` to acknowledge reuse; a custom secret requires its actual name. Existing workflow files are never overwritten, so a lost record can require manual reconciliation rather than a new setup.
 
 If a project lock remains after a crash, first verify that its owning setup process has exited. Only then remove the specific stale lock identified by the error. Never remove an active setup's lock.

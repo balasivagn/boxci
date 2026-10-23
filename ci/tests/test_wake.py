@@ -233,6 +233,13 @@ class PoolRoutingTest(unittest.TestCase):
             self.assertEqual(api.call_count, len(self.pool))
             self.assertTrue(all(call.args[0] == 'GET' for call in api.call_args_list))
 
+    def test_missing_repository_credential_never_calls_provider(self):
+        with tempfile.NamedTemporaryFile() as output, patch.object(wake, 'request') as api:
+            result = wake.route_pool(json.dumps(self.pool), '', 'dedicated-pool',
+                                     'ubuntu-24.04', True, output.name)
+            self.assertEqual(result, ['ubuntu-24.04'])
+            api.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

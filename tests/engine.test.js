@@ -18,6 +18,7 @@ function fixture() {
     branches: new Set(),
     calls: [],
     keys: 0,
+    keyRecords: [],
     prs: [],
     failPR: false,
     failSecret: false,
@@ -71,9 +72,15 @@ function fixture() {
       }
       return "";
     },
-    createKey: async () => {
+    keys: async () => structuredClone(db.keyRecords),
+    createKey: async (name) => {
       db.calls.push("key");
       db.keys++;
+      db.keyRecords.push({
+        id: "key_fixture_" + db.keys,
+        name,
+        expiresAt: "2030-01-01T00:00:00Z",
+      });
       return {
         key: {
           id: "key_fixture_" + db.keys,
@@ -270,6 +277,154 @@ test("failed secret transfer revokes the orphan key on reviewed retry without du
   assert.equal(db.keys, 2);
   assert.ok(db.calls.includes("keys rm key_fixture_1"));
   assert.equal(db.project.key_id, "key_fixture_2");
+});
+test("flat CLI key response works for setup and credential renewal", async () => {
+  const { app, db, provider } = fixture();
+  const create = provider.createKey;
+  provider.createKey = async (name) => {
+    const result = await create(name);
+    return { ...result.key, name, key: result.secret };
+  };
+  await app.init(options);
+  assert.equal(db.project.key_id, "key_fixture_1");
+  await app.renew(options);
+  assert.equal(db.project.key_id, "key_fixture_2");
+  assert.equal(db.machines.length, 1);
+  assert.equal(db.runners.length, 1);
+  assert.equal(JSON.stringify(db.project).includes("ibk_"), false);
+});
+test("CLI response containing only a secret fetches metadata by the checkpointed request name", async () => {
+  const { app, db, provider } = fixture();
+  const create = provider.createKey;
+  provider.createKey = async (name) => ({ key: (await create(name)).secret });
+  await app.init(options);
+  assert.equal(db.project.key_id, "key_fixture_1");
+  assert.equal(db.project.creating_key, undefined);
+});
+test("lost key response recovers only its checkpointed key and retry creates no extra VM or runner", async () => {
+  const { app, db, provider } = fixture();
+  const create = provider.createKey;
+  provider.createKey = async (name) => {
+    await create(name);
+    throw new Error("key response lost");
+  };
+  await assert.rejects(app.init(options), /key response lost/);
+  assert.equal(db.project.creating_key.name, db.keyRecords[0].name);
+  db.keyRecords.push({
+    id: "key_unrecorded",
+    name: "boxci-unrelated",
+    expiresAt: "2030-01-01T00:00:00Z",
+  });
+  provider.createKey = create;
+  await app.init(options);
+  assert.equal(db.machines.length, 1);
+  assert.equal(db.runners.length, 1);
+  assert.equal(db.project.key_id, "key_fixture_2");
+  assert.equal(db.project.creating_key, undefined);
+  assert.ok(db.calls.includes("keys rm key_fixture_1"));
+  assert.equal(db.calls.includes("keys rm key_unrecorded"), false);
+});
+test("ambiguous checkpointed key metadata blocks retry without another key, VM or runner", async () => {
+  const { app, db, provider } = fixture();
+  const create = provider.createKey;
+  provider.createKey = async (name) => {
+    await create(name);
+    throw new Error("key response lost");
+  };
+  await assert.rejects(app.init(options), /key response lost/);
+  db.keyRecords.push({ ...db.keyRecords[0], id: "key_duplicate" });
+  provider.createKey = create;
+  await assert.rejects(app.init(options), /ambiguous/);
+  assert.equal(db.keys, 1);
+  assert.equal(db.machines.length, 1);
+  assert.equal(db.runners.length, 1);
+  assert.equal(
+    db.calls.some((c) => c.startsWith("keys rm")),
+    false,
+  );
+});
+test("account switch during key creation blocks secret transfer and key retirement", async () => {
+  const { app, db, provider } = fixture();
+  const create = provider.createKey;
+  provider.createKey = async (name) => {
+    const result = await create(name);
+    db.identity = { userId: 8, login: "other" };
+    return result;
+  };
+  await assert.rejects(app.init(options), /account changed/);
+  assert.equal(db.secrets.size, 0);
+  assert.equal(db.project.pending_keys.length, 1);
+  assert.equal(
+    db.calls.some((c) => c.startsWith("keys rm")),
+    false,
+  );
+});
+test("retry of a legacy metadata failure reuses its VM and runner without touching an unrecorded key", async () => {
+  const { app, db, provider } = fixture();
+  const create = provider.createKey;
+  provider.createKey = async (name) => {
+    await create(name);
+    throw new Error("legacy metadata failure");
+  };
+  await assert.rejects(app.init(options), /legacy metadata failure/);
+  delete db.project.creating_key;
+  provider.usage = async () => ({ limits: { maxMachines: 1 } });
+  provider.createKey = async (name) => {
+    const result = await create(name);
+    return { ...result.key, key: result.secret };
+  };
+  db.calls = [];
+  await app.init(options);
+  assert.equal(db.machines.length, 1);
+  assert.equal(db.runners.length, 1);
+  assert.equal(db.calls.includes("create"), false);
+  assert.equal(db.calls.includes("exec"), false);
+  assert.equal(db.calls.includes("keys rm key_fixture_1"), false);
+});
+test("adopting a complete setup preserves pending credential recovery metadata", async () => {
+  const { app, db } = fixture();
+  await app.init(options);
+  db.project.creating_key = { name: "boxci-pending" };
+  db.project.pending_keys = [
+    { id: "key_pending", expiresAt: "2030-01-01T00:00:00Z" },
+  ];
+  await app.init(options);
+  assert.equal(db.project.creating_key.name, "boxci-pending");
+  assert.equal(db.project.pending_keys[0].id, "key_pending");
+});
+test("saved runner identity is rechecked before resumed credential changes", async () => {
+  const { app, db } = fixture();
+  db.failSecret = true;
+  await assert.rejects(app.init(options), /transfer failed/);
+  db.machines[0].name = "renamed";
+  db.calls = [];
+  db.failSecret = false;
+  await assert.rejects(app.init(options), /missing or renamed/);
+  assert.equal(db.calls.includes("key"), false);
+  assert.equal(
+    db.calls.some((c) => c.startsWith("keys rm")),
+    false,
+  );
+});
+test("already-retired recorded keys are cleared without deleting unrelated keys", async () => {
+  const { app, db } = fixture();
+  await app.init(options);
+  db.project.keys_to_retire = ["key_already_removed"];
+  db.calls = [];
+  await app.retireRecordedKeys(db.project);
+  assert.deepEqual(db.project.keys_to_retire, []);
+  assert.equal(
+    db.calls.some((c) => c.startsWith("keys rm")),
+    false,
+  );
+});
+test("a corrupt retirement queue is rejected in full before any deletion", async () => {
+  const { app, db } = fixture();
+  await app.init(options);
+  db.project.keys_to_retire = ["key_old", db.project.key_id];
+  db.calls = [];
+  await assert.rejects(app.retireRecordedKeys(db.project), /invalid/);
+  assert.deepEqual(db.calls, []);
 });
 test("account changed after review blocks every mutation", async () => {
   const { app, db } = fixture();

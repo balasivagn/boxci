@@ -4,6 +4,9 @@ import { createInterface } from "node:readline/promises";
 import { App } from "../src/engine.js";
 import { dashboard } from "../src/dashboard.js";
 import { redact } from "../src/process.js";
+import { Terminal } from "../src/terminal.js";
+let terminal = new Terminal();
+let output = new Terminal({ stream: process.stdout });
 const help = `boxci — BoxCI: GitHub Actions on InstaBox (not boxci.dev)
 
   boxci init                  Detect sign-ins, review one setup plan, finish setup
@@ -23,6 +26,7 @@ const help = `boxci — BoxCI: GitHub Actions on InstaBox (not boxci.dev)
   --dry-run                   Review without changing VMs/GitHub/local project
   --yes                       Apply the displayed plan without a terminal prompt
   --json                      Machine-readable result; diagnostics go to stderr
+  --no-color                  Disable colors and animation; respects NO_COLOR
   --provider google|github    Only used if InstaBox sign-in is needed
   --device                    Use InstaBox's native device login (GitHub)
   --secret NAME               Explicitly choose/reuse an Actions secret
@@ -54,6 +58,7 @@ const bools = [
   "device",
   "no-open",
   "migrate-workflows",
+  "no-color",
 ];
 const options = Object.fromEntries([
   ...strings.map((k) => [k, { type: "string" }]),
@@ -69,17 +74,15 @@ try {
     process.exit(0);
   }
   const opts = { ...values, dryRun: values["dry-run"] };
+  terminal = new Terminal({ plain: values.json || values["no-color"] });
+  output = new Terminal({
+    stream: process.stdout,
+    plain: values.json || values["no-color"],
+  });
   const emit = (event) => {
     if (values.json) return;
     if (event.type === "plan") {
-      const p = event.plan;
-      console.error(
-        `\n${p.repo} · InstaBox ${p.account.login}\n${p.pool.length ? p.pool.length + " existing CI VMs" : p.count + " new CI VM(s)"} · ${p.quota.used}/${p.quota.max} account VM slots used\n`,
-      );
-      console.error("  Routing label: " + p.label);
-      if (p.command) console.error("  Test command: " + p.command);
-      for (const a of p.actions) console.error("  " + a);
-      if (p.pr_url) console.error("\n  " + p.pr_url);
+      terminal.plan(event.plan);
     } else if (event.type === "migrate-plan") {
       const p = event.plan;
       console.error(
@@ -88,10 +91,14 @@ try {
       for (const j of p.jobs)
         console.error(`  ${j.workflow} → ${j.job}  (was ${j.runs_on})`);
       for (const e of p.edits) console.error(`  write ${e.relPath}`);
-    } else if (event.message) console.error(event.message);
+    } else if (event.type === "step") terminal.step(event.message);
+    else if (event.type === "complete" || event.type === "adopted")
+      terminal.finish();
+    else if (event.message) console.error(event.message);
   };
   const app = new App({ emit });
-  const approve = async () => {
+  const approve = async (plan) => {
+    terminal.finish();
     if (!process.stdin.isTTY)
       throw new Error(
         "Use --dry-run to inspect the plan, then --yes in automation.",
@@ -102,7 +109,16 @@ try {
     });
     try {
       return /^y(es)?$/i.test(
-        (await rl.question("\nApply this plan? [y/N] ")).trim(),
+        (
+          await rl.question(
+            terminal.paint(
+              "yellow",
+              plan?.incomplete
+                ? "Continue this saved setup? [y/N] "
+                : "Apply this plan? [y/N] ",
+            ),
+          )
+        ).trim(),
       );
     } finally {
       rl.close();
@@ -143,12 +159,15 @@ try {
     result = null;
   } else throw new Error("Unknown command. Run boxci --help.");
   if (result) {
+    terminal.finish();
     if (values.json) console.log(JSON.stringify(result, null, 2));
     else if (command === "status") {
-      console.log(`\n${result.repo} · checked ${result.checked_at}\n`);
+      console.log(
+        `\n${output.paint("bold", result.repo)} · checked ${result.checked_at}\n`,
+      );
       for (const m of result.members)
         console.log(
-          `${m.name.padEnd(24)} ${m.vm.state.padEnd(12)} GitHub ${m.runner.busy ? "busy" : m.runner.status === "online" ? "idle" : m.runner.status}`,
+          `${m.name.padEnd(24)} ${output.paint(m.vm.state === "running" ? "green" : "yellow", m.vm.state.padEnd(12))} GitHub ${output.paint(m.runner.status === "online" && !m.runner.busy ? "green" : "yellow", m.runner.busy ? "busy" : m.runner.status === "online" ? "idle" : m.runner.status)}`,
         );
       if (result.pr && !result.pr.merged)
         console.log(`\nCI migration awaits merge: ${result.pr.url}`);
@@ -156,7 +175,9 @@ try {
         console.error("History unavailable: " + result.history_error);
     } else if (command === "doctor") {
       for (const check of result.checks)
-        console.log(`${check.ok ? "✓" : "!"} ${check.name}: ${check.detail}`);
+        console.log(
+          `${output.paint(check.ok ? "green" : "yellow", check.ok ? "✓" : "!")} ${check.name}: ${check.detail}`,
+        );
     } else if (values["dry-run"])
       console.log("Plan only. No setup changes made.");
     else if (command === "migrate")
@@ -164,11 +185,12 @@ try {
     else
       console.log(
         result.pr_url
-          ? `\nReady: ${result.pr_url}\nboxci status · boxci migrate · boxci dashboard`
+          ? `\n${output.paint("green", "✓ Ready:")} ${result.pr_url}\nboxci status · boxci migrate · boxci dashboard`
           : result.message || "Done.",
       );
   }
 } catch (error) {
-  console.error("boxci: " + redact(error.message));
+  terminal.finish(false);
+  console.error(terminal.paint("red", "boxci: ") + redact(error.message));
   process.exitCode = 1;
 }

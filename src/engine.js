@@ -14,6 +14,7 @@ import {
   gitRoot,
 } from "./migrate.js";
 import { ownsVm, runnerAdoptVerifyScript, runnerInstallRoot } from "./brand.js";
+import { credentialResponse, keyMetadata, validKeyId } from "./credentials.js";
 export { runnerInstallRoot } from "./brand.js";
 export const defaults = {
   secret: "BOXCI_API_KEY",
@@ -175,6 +176,10 @@ export class App {
           .digest("hex")
           .slice(0, 10)
       : null;
+    this.emit({
+      type: "step",
+      message: "Checking saved setup, account quota and GitHub runners…",
+    });
     const [machines, usage, runners, details] = await Promise.all([
       this.provider.list(),
       this.provider.usage(),
@@ -400,6 +405,7 @@ export class App {
       actions: incomplete
         ? [
             "Resume the saved setup checkpoints. Existing runners and VMs are not replaced.",
+            "Finish the CI credential and workflow PR. Retire only recorded incomplete keys after secret delivery succeeds.",
           ]
         : pool && previous
           ? [
@@ -449,9 +455,10 @@ export class App {
         );
       const { project_revision, ...setup } = plan;
       if (plan.adopt_only) {
-        await this.storage.saveProject(setup);
-        this.emit({ type: "adopted", project: setup });
-        return setup;
+        const adopted = { ...current, ...setup };
+        await this.storage.saveProject(adopted);
+        this.emit({ type: "adopted", project: adopted });
+        return adopted;
       }
       const fresh = current && current.account.userId !== plan.account.userId;
       if (fresh) {
@@ -465,6 +472,15 @@ export class App {
       };
       await this.storage.saveProject(state);
       await this.provision(state, state.target_count || plan.count);
+      this.emit({
+        type: "step",
+        message: "Verifying the saved VM and runner pool…",
+      });
+      const [machines, runners] = await Promise.all([
+        this.provider.list(),
+        this.github.runners(state.repo),
+      ]);
+      validatePool(state.pool, machines, runners, state.label);
       if (state.managed_workflow === false) {
         await this.variable(state);
         state.status = "awaiting_merge";
@@ -630,6 +646,7 @@ export class App {
   async configure(state) {
     await this.guard(state);
     if (!state.command) throw new Error("Test command missing.");
+    this.emit({ type: "step", message: "Preparing the workflow branch…" });
     const source = await workflow(state);
     const repo = state.repo;
     if (!state.branch) {
@@ -675,48 +692,39 @@ export class App {
     await this.storage.saveProject(state);
     await this.variable(state);
     if (!(await this.github.hasSecret(repo, state.secret))) {
-      if (state.key_id && state.status === "credential_pending") {
-        await this.provider.cli(["keys", "rm", state.key_id]);
-        state.key_id = null;
-        state.key_expires_at = null;
-        await this.storage.saveProject(state);
-      }
-      const key = await this.provider.createKey(
-        "boxci-" + randomUUID().slice(0, 8),
-      );
-      const values = [];
-      const find = (v) => {
-        if (typeof v === "string" && v.startsWith("ibk_")) values.push(v);
-        else if (v && typeof v === "object") Object.values(v).forEach(find);
-      };
-      find(key);
-      values.forEach(protect);
-      if (values.length !== 1)
-        throw new Error(
-          "Provider returned an unexpected credential response; inspect instabox keys ls.",
-        );
-      const meta = key.key || key;
-      if (
-        !/^key_[A-Za-z0-9_]+$/.test(meta.id || "") ||
-        !Number.isFinite(Date.parse(meta.expiresAt))
-      )
-        throw new Error(
-          "Provider key metadata missing or invalid; inspect instabox keys ls. No secret was transferred.",
-        );
+      const { secret, meta } = await this.createCredential(state);
       state.key_id = meta.id;
       state.key_expires_at = meta.expiresAt;
       state.status = "credential_pending";
       await this.storage.saveProject(state);
-      if (this.provider.validateKey)
+      if (this.provider.validateKey) {
+        this.emit({
+          type: "step",
+          message: "Validating the CI credential without waking the VM…",
+        });
         await this.provider.validateKey(
-          values[0],
+          secret,
           state.account.userId,
           state.pool[0].machine_id,
         );
-      await this.github.secret(repo, state.secret, values[0]);
+      }
+      await this.guard(state);
+      this.emit({
+        type: "step",
+        message: "Transferring the credential privately to GitHub…",
+      });
+      await this.github.secret(repo, state.secret, secret);
+      await this.finishCredential(state, meta);
+    } else if (state.status === "credential_pending" && state.key_id) {
+      await this.finishCredential(state, {
+        id: state.key_id,
+        expiresAt: state.key_expires_at,
+      });
     }
+    await this.retireRecordedKeys(state);
     state.status = "credential_installed";
     await this.storage.saveProject(state);
+    this.emit({ type: "step", message: "Opening the workflow pull request…" });
     const matches = await this.github.api(
       `repos/${repo}/pulls?state=all&head=${repo.split("/")[0]}:${state.branch}`,
     );
@@ -736,6 +744,109 @@ export class App {
     state.status = "awaiting_merge";
     await this.storage.saveProject(state);
     this.emit({ type: "complete", project: state });
+  }
+  async createCredential(state) {
+    await this.guard(state);
+    state.pending_keys ||= [];
+    if (
+      state.status === "credential_pending" &&
+      state.key_id &&
+      !state.pending_keys.some((k) => k.id === state.key_id)
+    ) {
+      const previous = keyMetadata({
+        id: state.key_id,
+        expiresAt: state.key_expires_at,
+      });
+      if (!previous)
+        throw new Error(
+          "Recorded key metadata invalid; inspect provider keys before retrying.",
+        );
+      state.pending_keys.push(previous);
+    }
+    if (state.creating_key) {
+      this.emit({
+        type: "step",
+        message: "Recovering the recorded credential request…",
+      });
+      const matches = (await this.provider.keys()).filter(
+        (k) => k.name === state.creating_key.name,
+      );
+      if (
+        matches.length > 1 ||
+        (matches.length === 1 && !keyMetadata(matches[0]))
+      )
+        throw new Error(
+          "Pending key creation is ambiguous; inspect instabox keys ls before retrying.",
+        );
+      if (matches.length) {
+        const meta = keyMetadata(matches[0]);
+        if (!state.pending_keys.some((k) => k.id === meta.id))
+          state.pending_keys.push(meta);
+      }
+      delete state.creating_key;
+      await this.storage.saveProject(state);
+    }
+    state.creating_key = { name: "boxci-" + randomUUID().slice(0, 8) };
+    await this.storage.saveProject(state);
+    await this.guard(state);
+    this.emit({
+      type: "step",
+      message: "Creating the repository CI credential…",
+    });
+    const response = credentialResponse(
+      await this.provider.createKey(state.creating_key.name),
+    );
+    let meta = response.meta;
+    if (!meta) {
+      const matches = (await this.provider.keys()).filter(
+        (k) => k.name === state.creating_key.name,
+      );
+      if (matches.length === 1) meta = keyMetadata(matches[0]);
+    }
+    if (!meta)
+      throw new Error(
+        "Provider key metadata unavailable. The request was checkpointed; rerun boxci init to review recovery. No secret was transferred.",
+      );
+    state.pending_keys.push(meta);
+    delete state.creating_key;
+    await this.storage.saveProject(state);
+    return { secret: response.secret, meta };
+  }
+  async finishCredential(state, meta) {
+    if (!keyMetadata(meta))
+      throw new Error(
+        "Recorded credential metadata invalid; no keys were retired.",
+      );
+    const previous = [
+      state.key_id,
+      ...(state.pending_keys || []).map((k) => k.id),
+    ].filter((id) => id && id !== meta.id);
+    state.key_id = meta.id;
+    state.key_expires_at = meta.expiresAt;
+    state.pending_keys = [];
+    state.keys_to_retire = [
+      ...new Set([...(state.keys_to_retire || []), ...previous]),
+    ];
+    await this.storage.saveProject(state);
+  }
+  async retireRecordedKeys(state) {
+    const ids = [...(state.keys_to_retire || [])];
+    if (ids.some((id) => !validKeyId(id) || id === state.key_id))
+      throw new Error("Recorded previous key ID invalid; no key was retired.");
+    if (ids.length)
+      this.emit({
+        type: "step",
+        message: "Retiring recorded previous credentials…",
+      });
+    if (!ids.length) return;
+    await this.guard(state);
+    const present = new Set((await this.provider.keys()).map((key) => key.id));
+    for (const id of ids) {
+      await this.guard(state);
+      if (present.has(id)) await this.provider.cli(["keys", "rm", id]);
+      state.keys_to_retire = state.keys_to_retire.filter((k) => k !== id);
+      await this.storage.saveProject(state);
+    }
   }
   async add(options = {}, approve = async () => false) {
     const { project, identity } = await this.context(options.repo, {
@@ -848,10 +959,12 @@ export class App {
       authenticate: true,
     });
     if (!project) throw new Error("Run boxci init first.");
-    const [machines, usage] = await Promise.all([
+    const [machines, usage, runners] = await Promise.all([
       this.provider.list(),
       this.provider.usage(),
+      this.github.runners(project.repo),
     ]);
+    validatePool(project.pool, machines, runners, project.label);
     const plan = {
       ...project,
       quota: { used: machines.length, max: usage.limits?.maxMachines },
@@ -865,57 +978,31 @@ export class App {
     if (!options.yes && !(await approve(plan))) throw new Error("Cancelled.");
     return this.storage.locked(project.repo, async () => {
       await this.guard(project);
-      const result = await this.provider.createKey(
-        "boxci-" + randomUUID().slice(0, 8),
-      );
-      const values = [];
-      const visit = (v) => {
-        if (typeof v === "string" && v.startsWith("ibk_")) values.push(v);
-        else if (v && typeof v === "object") Object.values(v).forEach(visit);
-      };
-      visit(result);
-      values.forEach(protect);
-      if (values.length !== 1)
-        throw new Error(
-          "Unexpected credential response; inspect instabox keys ls.",
-        );
-      const meta = result.key || result;
-      if (!meta.id || !meta.expiresAt)
-        throw new Error(
-          "Credential metadata missing; inspect instabox keys ls.",
-        );
-      project.pending_keys = [
-        ...(project.pending_keys || []),
-        { id: meta.id, expiresAt: meta.expiresAt },
-      ];
-      await this.storage.saveProject(project);
-      if (this.provider.validateKey)
+      const [machines, runners] = await Promise.all([
+        this.provider.list(),
+        this.github.runners(project.repo),
+      ]);
+      validatePool(project.pool, machines, runners, project.label);
+      const { secret, meta } = await this.createCredential(project);
+      if (this.provider.validateKey) {
+        this.emit({
+          type: "step",
+          message: "Validating the replacement credential…",
+        });
         await this.provider.validateKey(
-          values[0],
+          secret,
           project.account.userId,
           project.pool[0].machine_id,
         );
-      await this.github.secret(project.repo, project.secret, values[0]);
-      const oldIds = [
-        project.key_id,
-        ...project.pending_keys.map((k) => k.id),
-      ].filter((id) => id && id !== meta.id);
-      project.key_id = meta.id;
-      project.key_expires_at = meta.expiresAt;
-      project.pending_keys = [];
-      project.keys_to_retire = [
-        ...new Set([...(project.keys_to_retire || []), ...oldIds]),
-      ];
-      await this.storage.saveProject(project);
-      for (const id of [...project.keys_to_retire]) {
-        if (!/^key_[A-Za-z0-9_]+$/.test(id))
-          throw new Error(
-            "Recorded previous key ID invalid; inspect provider keys.",
-          );
-        await this.provider.cli(["keys", "rm", id]);
-        project.keys_to_retire = project.keys_to_retire.filter((k) => k !== id);
-        await this.storage.saveProject(project);
       }
+      await this.guard(project);
+      this.emit({
+        type: "step",
+        message: "Transferring the credential privately to GitHub…",
+      });
+      await this.github.secret(project.repo, project.secret, secret);
+      await this.finishCredential(project, meta);
+      await this.retireRecordedKeys(project);
       return project;
     });
   }
