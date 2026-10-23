@@ -1,3 +1,5 @@
+import { version } from "./version.js";
+
 const codes = { bold: 1, dim: 2, red: 31, green: 32, yellow: 33, cyan: 36 };
 
 export class Terminal {
@@ -52,9 +54,13 @@ export class Terminal {
         : "New runner setup";
     const lines = [
       "",
-      this.paint("bold", "BoxCI · " + mode),
+      this.paint("bold", `BoxCI v${version} · ${mode}`),
       "",
       `  ${this.paint("dim", "Repository")}  ${this.paint("cyan", p.repo)}`,
+      this.paint(
+        "dim",
+        "  GitHub Actions changes target the repository above.",
+      ),
       `  ${this.paint("dim", "InstaBox  ")}  ${p.account.login}`,
       `  ${this.paint("dim", "VM quota  ")}  ${p.quota.used}/${p.quota.max} slots used`,
       `  ${this.paint("dim", "Runners   ")}  ${p.incomplete ? `${saved} saved · target ${p.target_count || saved}` : saved ? `${saved} existing${p.count ? ` + ${p.count} new` : ""}` : `${p.count} new`}`,

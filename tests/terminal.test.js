@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Terminal } from "../src/terminal.js";
+import { version } from "../src/version.js";
 
 const plan = {
   repo: "acme/project",
@@ -33,6 +34,8 @@ test("interactive plan makes the target repository and saved runner checkpoints 
   c.terminal.plan(plan);
   assert.match(c.output(), /Resume saved setup/);
   assert.match(c.output(), /acme\/project/);
+  assert.ok(c.output().includes(`BoxCI v${version}`));
+  assert.match(c.output(), /GitHub Actions changes target the repository above/);
   assert.match(c.output(), /saved-runner-01/);
   assert.match(c.output(), /1 saved · target 1/);
   assert.match(c.output(), /\x1b\[36m/);

@@ -46,7 +46,7 @@ Hosted minutes run out. A spare machine as a runner turns into a queue the momen
 Open your app's checkout in any coding agent with terminal access and paste:
 
 ```text
-Set up BoxCI in this repo using https://github.com/balasivagn/boxci. Install its CLI with `npm install -g @balasivagn/boxci`, reuse my current GitHub/InstaBox sign-ins, and show me `boxci init --dry-run` for approval before applying. Then complete setup, migrate compatible existing Linux x64 CI jobs with `boxci migrate`, preserve existing pools, verify with `boxci doctor` and `boxci status`, and leave workflow changes in a PR for review.
+Set up BoxCI for this application's repository; use https://github.com/balasivagn/boxci as the documentation reference. Install `npm install -g @balasivagn/boxci`, check `boxci --version`, and run all setup and migration commands from this application's checkout. Reuse my current GitHub/InstaBox sign-ins and show me `boxci init --dry-run` with the target repository for approval before applying. Then complete setup, migrate compatible existing Linux x64 CI jobs with `boxci migrate`, preserve existing pools, verify with `boxci doctor` and `boxci status`, and leave workflow changes in a PR for review.
 ```
 
 Your agent handles the commands; you complete any official browser sign-in and approve the setup plan.
@@ -55,10 +55,11 @@ Your agent handles the commands; you complete any official browser sign-in and a
 
 You need Node.js 22+, Git, admin access to a GitHub repository, and an InstaBox account with room for one more VM. See [full requirements](#requirements).
 
-**1. Install the CLI:**
+**1. Install the CLI** from any directory:
 
 ```sh
 npm install -g @balasivagn/boxci
+boxci --version
 boxci --help
 ```
 
@@ -69,6 +70,8 @@ cd /path/to/your-app
 boxci init --dry-run
 boxci init
 ```
+
+Run setup in the application repository whose CI you want to change. You do not need to clone the BoxCI repository. Check the **Repository** line before approving: it is inferred from your current Git checkout.
 
 The dry run shows the account, repository, runner label, test command and every planned action. It creates no VMs, runners, keys or repository settings. `boxci init` asks you to approve that plan, then provisions the VM and opens a workflow PR.
 
@@ -137,6 +140,7 @@ Go deeper: [architecture and source map](docs/ARCHITECTURE.md) · [interactive d
 
 | Command                       | What it does                                                 |
 | ----------------------------- | ------------------------------------------------------------ |
+| `boxci --version`             | Show the installed CLI version                               |
 | `boxci init`                  | Plan and set up runners, secret, pool variable, workflow PR  |
 | `boxci init --dry-run`        | Preview setup without creating anything                      |
 | `boxci ci run`                | Dispatch the BoxCI workflow on the default branch            |
@@ -267,7 +271,7 @@ Runner service readiness does not prove GitHub connectivity. Fallback is chosen 
 
 <br>
 
-- BoxCI is at **v0.1.2**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
+- BoxCI is at **v0.1.3**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
 - Commands in this README use a POSIX shell. Native Linux and Windows bootstrap and fresh-account authentication still need verification. Details are in [validation coverage](docs/VALIDATION.md).
 - There is no automatic uninstall. Cleanup steps are in [stop using BoxCI](docs/OPERATIONS.md#stop-using-boxci).
 
@@ -321,7 +325,7 @@ npm pack --dry-run
   ```sh
   mkdir -p dist
   npm run pack:local
-  npm install --global ./dist/balasivagn-boxci-0.1.2.tgz
+  npm install --global ./dist/balasivagn-boxci-0.1.3.tgz
   ```
 
 - More: [developer experience contract](docs/DEVELOPER_EXPERIENCE.md) · [design tokens](docs/DESIGN.md)

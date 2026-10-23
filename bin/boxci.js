@@ -5,9 +5,13 @@ import { App } from "../src/engine.js";
 import { dashboard } from "../src/dashboard.js";
 import { redact } from "../src/process.js";
 import { Terminal } from "../src/terminal.js";
+import { version } from "../src/version.js";
 let terminal = new Terminal();
 let output = new Terminal({ stream: process.stdout });
-const help = `boxci — BoxCI: GitHub Actions on InstaBox (not boxci.dev)
+const help = `boxci v${version} — BoxCI: GitHub Actions on InstaBox (not boxci.dev)
+
+Install globally from anywhere. Run init and migrate from the application
+checkout whose GitHub Actions you want to configure.
 
   boxci init                  Detect sign-ins, review one setup plan, finish setup
   boxci status                Pool, VM states, runners and recent CI
@@ -20,6 +24,7 @@ const help = `boxci — BoxCI: GitHub Actions on InstaBox (not boxci.dev)
   boxci dashboard             Open the optional, local, read-only dashboard
 
   --repo owner/repository     Otherwise inferred from the current Git checkout
+  --version, -v               Show the installed CLI version
   --migrate-workflows         After init, interactively migrate existing workflows
   --match TEXT                migrate: select jobs whose runs-on contains TEXT
   --jobs file.yml:job,...     migrate: explicit job list (under .github/workflows)
@@ -59,16 +64,22 @@ const bools = [
   "no-open",
   "migrate-workflows",
   "no-color",
+  "version",
 ];
 const options = Object.fromEntries([
   ...strings.map((k) => [k, { type: "string" }]),
   ...bools.map((k) => [k, { type: "boolean" }]),
 ]);
+options.version.short = "v";
 try {
   const { values, positionals } = parseArgs({
     options,
     allowPositionals: true,
   });
+  if (values.version || positionals[0] === "version") {
+    console.log(values.json ? JSON.stringify({ version }) : version);
+    process.exit(0);
+  }
   if (values.help || !positionals.length) {
     console.log(help);
     process.exit(0);
@@ -191,6 +202,9 @@ try {
   }
 } catch (error) {
   terminal.finish(false);
-  console.error(terminal.paint("red", "boxci: ") + redact(error.message));
+  const tone = /^(Setup cancelled|Cancelled\.)/i.test(error.message)
+    ? "dim"
+    : "red";
+  console.error(terminal.paint(tone, "boxci: ") + redact(error.message));
   process.exitCode = 1;
 }
