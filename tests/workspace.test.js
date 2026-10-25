@@ -61,6 +61,62 @@ test("wrong repositories, changed remotes and edits after review cannot write wo
   await assert.rejects(workspace.apply(edit), /changed after review/);
   assert.equal(await readFile(join(root, path), "utf8"), "my edits");
 });
+test("credentialed insteadOf rewrites still resolve the GitHub remote without exposing credentials", async (t) => {
+  const { root, workspace, git } = await fixture(t);
+  git(
+    "config",
+    "url.https://user:secret@github.com/.insteadOf",
+    "git@github.com:",
+  );
+  const remotes = execFileSync("git", ["remote", "-v"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.match(
+    remotes,
+    /https:\/\/user:secret@github\.com\/acme\/project\.git/,
+  );
+  assert.equal(await workspace.root("acme/project"), root);
+  await assert.rejects(workspace.root("other/repo"), (error) => {
+    assert.match(error.message, /does not have a GitHub remote/);
+    assert.doesNotMatch(error.message, /secret|user:/);
+    return true;
+  });
+  git("config", "--unset", "url.https://user:secret@github.com/.insteadOf");
+  for (const url of [
+    "https://user@github.com/acme/project.git",
+    "https://user:secret@github.com/acme/project.git",
+    "https://user:secret@github.com/acme/project",
+    "https://user@github.com/acme/project/",
+  ]) {
+    git("remote", "set-url", "origin", url);
+    assert.equal(await workspace.root("acme/project"), root, url);
+  }
+});
+test("credentialed remotes on other hosts or malformed URLs are rejected without exposing credentials", async (t) => {
+  const { workspace, git } = await fixture(t);
+  for (const url of [
+    "https://user:secret@gitlab.com/acme/project.git",
+    "https://user:secret@github.com.evil.com/acme/project.git",
+    "https://github.com.evil.com/acme/project.git",
+    "https://evil.com/github.com/acme/project.git",
+    "https://user:secret@evil.com/github.com/acme/project.git",
+    "https://user:secret@evil.com@github.com/acme/project.git",
+    "https://evil.com#@github.com/acme/project.git",
+    "https://evil.com?@github.com/acme/project.git",
+    "https://evil.com\\@github.com/acme/project.git",
+    "https://user:secret@github.com:8443/acme/project.git",
+    "https://user:secret@github.com/acme/project/extra.git",
+    "http://user:secret@github.com/acme/project.git",
+  ]) {
+    git("remote", "set-url", "origin", url);
+    await assert.rejects(workspace.root("acme/project"), (error) => {
+      assert.match(error.message, /does not have a GitHub remote/, url);
+      assert.doesNotMatch(error.message, /secret|evil|user:/, url);
+      return true;
+    });
+  }
+});
 test("workflow status distinguishes untracked, staged, committed and edited files without changing Git", async (t) => {
   const { root, workspace, git } = await fixture(t);
   await workspace.apply(
