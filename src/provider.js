@@ -56,12 +56,16 @@ export class Provider {
       return await this.identity();
     } catch (e) {
       if (e.code === "ENOENT") throw e;
-      if (!/auth|sign|login|credential|401|unauthorized/i.test(e.message))
+      if (
+        !/auth|sign|login|not logged in|credential|401|unauthorized/i.test(
+          e.message,
+        )
+      )
         throw e;
     }
     if (!this.interactive)
       throw new Error(
-        "Sign-in is needed. Run boxci init in a terminal; the official browser flow will return to the command.",
+        "InstaBox sign-in is needed. Run `instabox login` in a terminal, or run boxci init in a terminal to start the official browser flow, then retry.",
       );
     if (device && provider === "google")
       throw new Error(

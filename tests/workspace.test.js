@@ -15,8 +15,10 @@ import { join } from "node:path";
 import { Workspace } from "../src/workspace.js";
 import { buildMigratePlan, applyMigratePlan } from "../src/migrate.js";
 import { legacyWakeJobYaml, reusableWakeWorkflow } from "../src/wake.js";
+import { isolateGitConfig } from "./helpers/git-config.js";
 
 async function fixture(t) {
+  await isolateGitConfig(t);
   const root = await realpath(await mkdtemp(join(tmpdir(), "boxci-checkout-")));
   t.after(() => rm(root, { recursive: true, force: true }));
   const git = (...args) =>
@@ -26,6 +28,9 @@ async function fixture(t) {
   return { root, git, workspace: new Workspace({ cwd: root }) };
 }
 const path = ".github/workflows/boxci.yml";
+// Assertion messages may only carry URLs with their userinfo removed.
+const redact = (text) => text.replace(/\/\/[^\s/@]*@/g, "//[REDACTED]@");
+const leaks = (text, secret) => text.includes(secret) || /user:/.test(text);
 
 test("workflow review is read-only; apply creates only a local file and retry preserves custom edits", async (t) => {
   const { root, workspace, git } = await fixture(t);
@@ -60,6 +65,118 @@ test("wrong repositories, changed remotes and edits after review cannot write wo
   await writeFile(join(root, path), "my edits");
   await assert.rejects(workspace.apply(edit), /changed after review/);
   assert.equal(await readFile(join(root, path), "utf8"), "my edits");
+});
+test("credentialed insteadOf rewrites still resolve the GitHub remote without exposing credentials", async (t) => {
+  await isolateGitConfig(t);
+  const { root, workspace, git } = await fixture(t);
+  git(
+    "config",
+    "url.https://user:secret@github.com/.insteadOf",
+    "git@github.com:",
+  );
+  const remotes = execFileSync("git", ["remote", "-v"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.ok(
+    remotes.includes("https://user:secret@github.com/acme/project.git"),
+    "the local credentialed insteadOf rewrite was not applied",
+  );
+  assert.equal(await workspace.root("acme/project"), root);
+  await assert.rejects(workspace.root("other/repo"), (error) => {
+    assert.ok(
+      /does not have a GitHub remote/.test(error.message),
+      "unexpected error for a different repository",
+    );
+    assert.ok(
+      !leaks(error.message, "secret"),
+      "error message exposes credentials",
+    );
+    return true;
+  });
+  git("config", "--unset", "url.https://user:secret@github.com/.insteadOf");
+  for (const url of [
+    "https://user@github.com/acme/project.git",
+    "https://user:secret@github.com/acme/project.git",
+    "https://user:secret@github.com/acme/project",
+    "https://user@github.com/acme/project/",
+  ]) {
+    git("remote", "set-url", "origin", url);
+    assert.equal(await workspace.root("acme/project"), root, redact(url));
+  }
+});
+test("credentialed remotes on other hosts or malformed URLs are rejected without exposing credentials", async (t) => {
+  await isolateGitConfig(t);
+  const { workspace, git } = await fixture(t);
+  for (const url of [
+    "https://user:secret@gitlab.com/acme/project.git",
+    "https://user:secret@github.com.evil.com/acme/project.git",
+    "https://github.com.evil.com/acme/project.git",
+    "https://evil.com/github.com/acme/project.git",
+    "https://user:secret@evil.com/github.com/acme/project.git",
+    "https://user:secret@evil.com@github.com/acme/project.git",
+    "https://evil.com#@github.com/acme/project.git",
+    "https://evil.com?@github.com/acme/project.git",
+    "https://evil.com\\@github.com/acme/project.git",
+    "https://user:secret@github.com:8443/acme/project.git",
+    "https://user:secret@github.com/acme/project/extra.git",
+    "http://user:secret@github.com/acme/project.git",
+  ]) {
+    git("remote", "set-url", "origin", url);
+    await assert.rejects(
+      workspace.root("acme/project"),
+      (error) => {
+        assert.ok(
+          /does not have a GitHub remote/.test(error.message),
+          `unexpected error for ${redact(url)}`,
+        );
+        assert.ok(
+          !leaks(error.message, "secret") && !/evil/.test(error.message),
+          `error message exposes the remote for ${redact(url)}`,
+        );
+        return true;
+      },
+      `accepted ${redact(url)}`,
+    );
+  }
+});
+test("failure messages for credentialed remotes cannot contain the token", async (t) => {
+  await isolateGitConfig(t);
+  const { root, workspace, git } = await fixture(t);
+  const token = "FAKETOKEN0123456789";
+  git(
+    "config",
+    `url.https://x-access-token:${token}@github.com/.insteadOf`,
+    "git@github.com:",
+  );
+  const remotes = execFileSync("git", ["remote", "-v"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.ok(remotes.includes(token), "the fake token rewrite was not applied");
+  assert.ok(!redact(remotes).includes(token), "redaction left the token");
+  for (const url of [
+    `https://x-access-token:${token}@github.com/acme/project.git`,
+    `https://${token}@github.com/acme/project`,
+    `https://x-access-token:${token}@gitlab.com/acme/project.git`,
+  ])
+    assert.ok(!redact(url).includes(token), "redaction left the token");
+  for (const repo of ["other/repo", "acme/proj", "acme/projectx"])
+    await assert.rejects(workspace.root(repo), (error) => {
+      assert.ok(!error.message.includes(token), "error message has the token");
+      assert.ok(!error.message.includes("x-access-token"), "error has user");
+      return true;
+    });
+  git(
+    "remote",
+    "set-url",
+    "origin",
+    `https://x-access-token:${token}@gitlab.com/acme/project.git`,
+  );
+  await assert.rejects(workspace.root("acme/project"), (error) => {
+    assert.ok(!error.message.includes(token), "error message has the token");
+    return true;
+  });
 });
 test("workflow status distinguishes untracked, staged, committed and edited files without changing Git", async (t) => {
   const { root, workspace, git } = await fixture(t);
