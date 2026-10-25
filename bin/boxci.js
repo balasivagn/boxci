@@ -24,7 +24,7 @@ and push the workflow changes.
 
 Run boxci --help for all commands.
 `;
-const help = `boxci v${version} — BoxCI: GitHub Actions on InstaBox (not boxci.dev)
+const help = `boxci v${version} — BoxCI: GitHub Actions on InstaBox (https://github.com/balasivagn/boxci)
 
 Install globally from anywhere. Run init and migrate from the application
 checkout whose GitHub Actions you want to configure.
