@@ -26,10 +26,13 @@ export class Workspace {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     });
+    // `git remote -v` shows URLs after insteadOf rewrites, which may add
+    // credentials (https://user:token@github.com/...). Accept that userinfo
+    // without ever echoing the URL; the host must still be exactly github.com.
     const matches = remotes.split("\n").some((line) => {
       const url = line.split(/\s+/)[1] || "";
       const target = url.match(
-        /^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([^/]+\/[^/]+?)(?:\.git)?\/?$/i,
+        /^(?:https:\/\/(?:[^\s/\\?#@]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([^/]+\/[^/]+?)(?:\.git)?\/?$/i,
       )?.[1];
       return target?.toLowerCase() === repo.toLowerCase();
     });
