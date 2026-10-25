@@ -1,6 +1,6 @@
 {
   "name": "@balasivagn/boxci",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "BoxCI: GitHub Actions on InstaBox. One setup, paused runners that wake for CI, optional local dashboard.",
   "type": "module",
   "bin": {

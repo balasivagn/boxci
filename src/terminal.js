@@ -97,7 +97,8 @@ export class Terminal {
           : value,
       );
     }
-    if (p.pr_url) lines.push("", "  " + this.paint("cyan", p.pr_url));
+    if (p.pr_url && p.workflow_delivery !== "local")
+      lines.push("", "  " + this.paint("cyan", p.pr_url));
     lines.push("");
     this.write(lines.join("\n"));
   }
