@@ -73,17 +73,17 @@ boxci init
 
 Run setup in the application repository whose CI you want to change. You do not need to clone the BoxCI repository. Check the **Repository** line before approving: it is inferred from your current Git checkout.
 
-The dry run shows the account, repository, runner label, test command and every planned action. It creates no VMs, runners, keys or repository settings. `boxci init` asks you to approve that plan, then provisions the VM, installs the CI secret and pool variable, and writes the application workflow and shared wake helper locally. It does not create a Git branch, commit, push, or PR.
+The dry run shows the account, repository, runner label and every planned action. It creates no VMs, runners, keys or repository settings. `boxci init` asks you to approve that plan, then provisions the VM, installs the CI secret and pool variable, and writes only `.github/workflows/boxci-wake.yml`. It never creates or restores a starter/build/test workflow; your application CI stays in your existing files. It does not create a Git branch, commit, push, or PR.
 
 **3. Review, commit, and push the workflow changes, then run CI:**
 
-Inspect `git diff -- .github/workflows` and check the generated test command, Node version and triggers. Commit and push through your normal process, opening your own PR if needed. Both `init` and `migrate` leave workflow changes local; neither commits, pushes, or opens a PR. Merge the workflow onto the default branch before using the default dispatch below.
+Run `boxci migrate` to connect your existing jobs. Inspect `git diff -- .github/workflows`; your existing commands, toolchains and triggers remain in those application workflows. Commit and push through your normal process, opening your own PR if needed. Both `init` and `migrate` leave workflow changes local; neither commits, pushes, or opens a PR. Merge the workflow onto the default branch before using the default dispatch below.
 
 ```sh
-boxci ci run
+boxci ci run --workflow ci.yml
 ```
 
-Open the **BoxCI** run in GitHub Actions and watch your first job land on your own runner. `boxci status` shows the pool and recent jobs.
+Open your application workflow run in GitHub Actions and watch your first job land on your own runner. `boxci status` shows the pool and recent jobs.
 
 <details>
 <summary><b>Install tips:</b> PATH, updating, installing from main, custom test commands</summary>
@@ -107,15 +107,10 @@ Open the **BoxCI** run in GitHub Actions and watch your first job land on your o
   To pin a reviewed snapshot, replace `refs/heads/main` in the URL with a commit SHA.
 
 - **Choose the repository explicitly:** add `--repo owner/repository`. `init` and `migrate` still require a checkout with a matching GitHub remote.
-- **Override the inferred test command:** pass the same command to the preview and the real run.
-
-  ```sh
-  boxci init --command "npm ci && npm run test:ci" --dry-run
-  boxci init --command "npm ci && npm run test:ci"
-  ```
+- **Test commands and toolchains:** keep these in your application workflows. Init does not generate test jobs; `--command` is retained only as legacy metadata.
 
 - **Interrupted?** Rerun `boxci init`. It resumes from saved checkpoints.
-- **Already set up?** Rerunning `boxci init` verifies and reuses the saved VM and runner. If its workflow files are already present, it reports “Already configured” without a setup prompt or changes. It preserves your workflow edits and distinguishes local changes from a committed file; use `boxci doctor` to check readiness on GitHub. A missing local workflow is restored only after approval.
+- **Already set up?** Rerunning `boxci init` verifies and reuses the saved VM and runner. If its workflow files are already present, it reports “Already configured” without a setup prompt or changes. It preserves your workflow edits and distinguishes local changes from a committed file; use `boxci doctor` to check readiness on GitHub. Only a missing wake helper can be restored after approval; deleted starter workflows are never recreated.
 - **HTTPS certificates:** BoxCI automatically includes your system's trusted certificates; no `NODE_OPTIONS` is needed. See [certificate trust and setup recovery](docs/OPERATIONS.md#https-certificate-trust-and-interrupted-setup).
 - **Reusing an existing pool?** Start with a dry run and read [pool discovery and recovery](docs/CONFIGURATION.md#pool-discovery-and-recovery), especially on a new machine.
 
@@ -140,22 +135,22 @@ Go deeper: [architecture and source map](docs/ARCHITECTURE.md) · [interactive d
 
 ## Commands
 
-| Command                       | What it does                                                     |
-| ----------------------------- | ---------------------------------------------------------------- |
-| `boxci --version`             | Show the installed CLI version                                   |
-| `boxci init`                  | Set up runners, secret and pool variable; write a local workflow |
-| `boxci init --dry-run`        | Preview setup without creating anything                          |
-| `boxci ci run`                | Dispatch the BoxCI workflow on the default branch                |
-| `boxci ci run --ref <branch>` | Dispatch on an explicit ref                                      |
-| `boxci status`                | VM and runner states plus recent jobs (passive)                  |
-| `boxci doctor`                | Check account, quota, mapping, merge state, key expiry           |
-| `boxci dashboard`             | Start or reopen the background, read-only dashboard              |
-| `boxci dashboard status`      | Check whether the local dashboard is running                     |
-| `boxci dashboard stop`        | Stop the local dashboard; cloud runners stay unchanged           |
-| `boxci wake`                  | Explicitly wake the pool                                         |
-| `boxci pool add --count 1`    | Add a VM to the pool, within your quota                          |
-| `boxci auth renew`            | Rotate the 30-day CI credential                                  |
-| `boxci migrate`               | Move existing workflow jobs onto the pool                        |
+| Command                       | What it does                                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| `boxci --version`             | Show the installed CLI version                                                     |
+| `boxci init`                  | Set up runners, secret and pool variable; write only the wake helper               |
+| `boxci init --dry-run`        | Preview setup without creating anything                                            |
+| `boxci ci run`                | Dispatch a connected application workflow; use `--workflow file.yml` to select one |
+| `boxci ci run --ref <branch>` | Dispatch on an explicit ref                                                        |
+| `boxci status`                | VM and runner states plus recent jobs (passive)                                    |
+| `boxci doctor`                | Check account, quota, mapping, merge state, key expiry                             |
+| `boxci dashboard`             | Start or reopen the background, read-only dashboard                                |
+| `boxci dashboard status`      | Check whether the local dashboard is running                                       |
+| `boxci dashboard stop`        | Stop the local dashboard; cloud runners stay unchanged                             |
+| `boxci wake`                  | Explicitly wake the pool                                                           |
+| `boxci pool add --count 1`    | Add a VM to the pool, within your quota                                            |
+| `boxci auth renew`            | Rotate the 30-day CI credential                                                    |
+| `boxci migrate`               | Move existing workflow jobs onto the pool                                          |
 
 Common flags: `--dry-run` previews any change, `--yes` applies a reviewed plan without a prompt, `--json` returns structured output, and `--repo owner/repository` selects the repository. `init` and `migrate` require its matching checkout; monitoring commands can run elsewhere. `status`, `doctor` and `dashboard` never run guest commands or wake VMs.
 
@@ -170,7 +165,7 @@ boxci migrate --match blacksmith --dry-run
 boxci migrate --match blacksmith
 ```
 
-Commit the helper and its callers together. Existing generated inline wake blocks can be extracted with `boxci init` (starter workflow) or `boxci migrate` (migrated workflows); the CLI shows local edits for approval and preserves application steps. Customized wake blocks and conflicting helper files require manual review. Rerunning these commands reuses the existing pool and helper.
+Commit the helper and its callers together. Existing generated inline wake blocks in application workflows can be extracted with `boxci migrate`; the CLI shows local edits for approval and preserves application steps. Customized wake blocks and conflicting helper files require manual review. Rerunning these commands reuses the existing pool and helper.
 
 Or run `boxci migrate` with no flags to pick jobs interactively. Prefer explicit jobs? Use `--jobs file.yml:job,...`. To do it in one go, `boxci init --migrate-workflows` runs the same migration right after setup.
 
@@ -209,7 +204,7 @@ BoxCI ships an agent skill at [`skills/boxci-migrate/SKILL.md`](skills/boxci-mig
 - Pick jobs that run on **Linux x64** and whose steps work on both the InstaBox VM and the hosted Ubuntu fallback.
 - Migration changes scheduling only. Toolchains, services and caches stay as they are.
 - Only static `runs-on` values are scanned. Dynamic expressions are skipped. Review matrix jobs and complex `needs` by hand.
-- The starter workflow is separate and is skipped by migration. If your existing CI already runs the same tests, decide whether to keep the starter enabled to avoid duplicate builds.
+- Init creates only the reusable helper. Any starter workflow left from an older release is preserved as a legacy file; review and remove it yourself if redundant. Init will not recreate it.
 
 </details>
 
@@ -233,14 +228,9 @@ BoxCI is a young project and it tries to be precise about what it does. The deta
 </details>
 
 <details>
-<summary><b>What the starter workflow covers</b></summary>
+<summary><b>What init creates</b></summary>
 
-<br>
-
-- **Linux x64** runners, **Node 24** and **one build job**.
-- The test command is inferred for npm or pnpm from `package.json` on the target repository's **default branch**. Use `--command` for anything else. Other language toolchains need explicit workflow setup.
-- Triggers: non-draft PRs and manual dispatch. There is **no `push` trigger**. Draft PRs skip the wake and build jobs.
-- Fork PRs always use hosted Ubuntu.
+Init provisions or reuses the runner pool and writes only `boxci-wake.yml`. It does not add build/test jobs or choose application triggers, Node versions or package managers. Keep those in your existing workflows and connect them with `boxci migrate`. Fork PRs use hosted fallback.
 
 </details>
 
@@ -292,7 +282,7 @@ Runner service readiness does not prove GitHub connectivity. Fallback is chosen 
 
 <br>
 
-- BoxCI is at **v0.3.1**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
+- BoxCI is at **v0.4.0**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
 - Commands in this README use a POSIX shell. Native Linux and Windows bootstrap and fresh-account authentication still need verification. Details are in [validation coverage](docs/VALIDATION.md).
 - There is no automatic uninstall. Cleanup steps are in [stop using BoxCI](docs/OPERATIONS.md#stop-using-boxci).
 
@@ -346,7 +336,7 @@ npm pack --dry-run
   ```sh
   mkdir -p dist
   npm run pack:local
-  npm install --global ./dist/balasivagn-boxci-0.3.1.tgz
+  npm install --global ./dist/balasivagn-boxci-0.4.0.tgz
   ```
 
 - More: [developer experience contract](docs/DEVELOPER_EXPERIENCE.md) · [design tokens](docs/DESIGN.md)

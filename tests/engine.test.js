@@ -10,6 +10,8 @@ import {
   wakeJobYaml,
   reusableWakeWorkflow,
 } from "../src/wake.js";
+import { workflow } from "../src/workflow.js";
+const helperPath = ".github/workflows/boxci-wake.yml";
 const id = (char) => "m_" + char.repeat(26);
 function fixture() {
   const db = {
@@ -148,6 +150,16 @@ function fixture() {
     },
     content: async (_, path, ref) => db.files.get(ref + ":" + path) || null,
     recent: async () => [],
+    consumerWorkflows: async (_, ref = "main") =>
+      [...db.files.entries()]
+        .filter(
+          ([key, source]) =>
+            key.startsWith(ref + ":") &&
+            !key.endsWith(":" + helperPath) &&
+            source.includes("./" + helperPath),
+        )
+        .map(([key]) => key.slice(ref.length + 1))
+        .sort(),
     api: async (path, opts = {}) => {
       if (
         opts.method &&
@@ -229,30 +241,21 @@ const options = {
   command: "npm ci && npm test",
   yes: true,
 };
-test("new setup creates a verified service runner, transfers the credential privately and writes the workflow locally", async () => {
+test("new setup creates only the wake helper, never a starter or build workflow", async () => {
   const { app, db } = fixture();
-  const state = await app.init(options);
+  const state = await app.init({ repo: options.repo, yes: true });
   assert.equal(state.status, "ready_to_commit");
-  assert.equal(state.pool.length, 1);
-  assert.equal(state.workflow_delivery, "local");
+  assert.equal(state.helper_only, true);
+  assert.deepEqual([...db.localFiles.keys()], [helperPath]);
+  assert.equal(db.localFiles.get(helperPath), await reusableWakeWorkflow());
+  assert.equal(db.machines.length, 1);
+  assert.equal(db.runners.length, 1);
+  assert.equal(db.keys, 1);
   assert.equal(db.branches.size, 0);
   assert.equal(db.files.size, 0);
   assert.equal(db.prs.length, 0);
-  assert.equal(db.keys, 1);
-  assert.deepEqual(JSON.parse(db.variables.get("BOXCI_POOL")), state.pool);
-  const source = [...db.localFiles.values()][0];
-  assert.match(source, /vars.BOXCI_POOL/);
-  assert.doesNotMatch(source, /ThreadPoolExecutor/);
-  assert.match(source, /uses: \.\/\.github\/workflows\/boxci-wake.yml/);
-  const helper = db.localFiles.get(".github/workflows/boxci-wake.yml");
-  assert.match(helper, /ThreadPoolExecutor/);
-  assert.match(helper, /head.repo.full_name == github.repository/);
-  assert.ok(source.indexOf("actions/checkout") > source.indexOf("  build:"));
   assert.equal(JSON.stringify(db.project).includes("ibk_"), false);
-  assert.equal(
-    JSON.stringify(db.project).includes("fixture-registration-token"),
-    false,
-  );
+  assert.deepEqual(JSON.parse(db.variables.get("BOXCI_POOL")), state.pool);
 });
 test("dry run and declined confirmation never provision or save a project", async () => {
   const { app, db } = fixture();
@@ -278,23 +281,24 @@ test("local write failure or an edit after review blocks setup before provisioni
   const changed = fixture();
   await assert.rejects(
     changed.app.init({ ...options, yes: false }, async (plan) => {
-      changed.db.localFiles.set(plan.workflow_path, "my new local edits");
+      changed.db.localFiles.set(
+        plan.workflow_edit.relPath,
+        "my new local edits",
+      );
       return true;
     }),
     /changed after review/,
   );
   assert.equal(changed.db.project, null);
   assert.equal(changed.db.machines.length, 0);
-  assert.equal(
-    changed.db.localFiles.get(".github/workflows/boxci.yml"),
-    "my new local edits",
-  );
+  assert.equal(changed.db.localFiles.get(helperPath), "my new local edits");
 });
 test("a legacy uploaded branch resumes into a local diff without changing that branch or registering another runner", async () => {
   const { app, db } = fixture();
   db.failSecret = true;
   await assert.rejects(app.init(options), /transfer failed/);
   db.project.workflow_delivery = undefined;
+  db.project.helper_only = false;
   db.project.branch = "legacy-ci-branch";
   db.files.set(
     "legacy-ci-branch:" + db.project.workflow_path,
@@ -312,47 +316,53 @@ test("a legacy uploaded branch resumes into a local diff without changing that b
   assert.equal(db.calls.includes("exec"), false);
   assert.equal(db.project.status, "ready_to_commit");
 });
-test("local workflow readiness uses the default branch, and status never wakes VMs or fetches unavailable history", async () => {
-  const { app, db, github } = fixture();
+test("helper-only readiness requires a published helper and a connected application workflow", async () => {
+  const { app, db } = fixture();
   await app.init(options);
   db.calls = [];
-  github.recent = async () => {
-    throw new Error("history must not be requested before publish");
-  };
-  const pending = await app.status(options);
-  assert.equal(pending.workflow_published, false);
-  assert.equal(pending.history_error, null);
-  assert.equal(
-    (await app.doctor(options)).checks.find(
-      (c) => c.name === "Workflow published",
-    ).ok,
-    false,
-  );
-  assert.ok(db.calls.every((call) => call === "GET"));
-  db.files.set(
-    "main:" + db.project.workflow_path,
-    db.localFiles.get(db.project.workflow_path),
-  );
-  github.recent = async () => [];
   assert.equal((await app.status(options)).workflow_published, false);
+  assert.equal((await app.doctor(options)).ready, false);
   await assert.rejects(app.ciRun(options), /commit, and push/);
-  db.files.set(
-    "main:.github/workflows/boxci-wake.yml",
-    await reusableWakeWorkflow(),
-  );
+  db.files.set("main:" + helperPath, await reusableWakeWorkflow());
   assert.equal((await app.status(options)).workflow_published, true);
+  assert.equal((await app.doctor(options)).ready, false);
+  await assert.rejects(app.ciRun(options), /No application workflow/);
+  db.files.set("main:.github/workflows/ci.yml", await workflow(db.project));
+  assert.deepEqual((await app.status(options)).consumer_workflows, [
+    ".github/workflows/ci.yml",
+  ]);
   assert.equal((await app.doctor(options)).ready, true);
-  assert.equal((await app.ciRun(options)).ref, "main");
+  assert.equal((await app.ciRun(options)).workflow, ".github/workflows/ci.yml");
+});
+test("helper-only dispatch selects the application workflow and never dispatches the reusable helper", async () => {
+  const { app, db, github } = fixture();
+  await app.init(options);
+  db.files.set("main:" + helperPath, await reusableWakeWorkflow());
+  for (const name of ["ci.yml", "test.yml"])
+    db.files.set("main:.github/workflows/" + name, await workflow(db.project));
+  await assert.rejects(app.ciRun(options), /--workflow/);
+  const original = github.api;
+  const dispatches = [];
+  github.api = async (path, opts) => {
+    if (opts?.method === "POST") dispatches.push(path);
+    return original(path, opts);
+  };
+  const result = await app.ciRun({ ...options, workflow: "ci.yml" });
+  assert.equal(result.workflow, ".github/workflows/ci.yml");
+  assert.deepEqual(dispatches, [
+    "repos/acme/project/actions/workflows/ci.yml/dispatches",
+  ]);
+  await assert.rejects(
+    app.ciRun({ ...options, workflow: "boxci-wake.yml" }),
+    /Choose your application workflow/,
+  );
 });
 test("repeat init is prompt-free and makes no changes before or after committing and publishing the workflow", async () => {
   for (const phase of ["uncommitted", "committed", "published"]) {
     const { app, db } = fixture();
     await app.init(options);
     const path = db.project.workflow_path;
-    db.localFiles.set(
-      path,
-      db.localFiles.get(path) + "\n# Application customizations\n",
-    );
+    db.localFiles.set(path, "name: Application CI\n# My customizations\n");
     db.workflowPending = phase === "uncommitted";
     if (phase === "published")
       db.files.set("main:" + path, db.localFiles.get(path));
@@ -377,8 +387,8 @@ test("repeat init is prompt-free and makes no changes before or after committing
     assert.match(
       result.message,
       phase === "uncommitted"
-        ? /Workflow has local changes/
-        : /Workflow is committed locally/,
+        ? /Wake helper has local changes/
+        : /Wake helper is committed locally/,
     );
     assert.equal(db.saves, before.saves);
     assert.equal(db.workflowWrites, before.workflowWrites);
@@ -402,11 +412,7 @@ test("prompt-free repeat init still rejects account, checkpoint and workflow cha
       if (changed === "identity") db.identity.userId++;
       else if (changed === "project")
         db.project.command = "concurrently changed command";
-      else
-        db.localFiles.set(
-          db.project.workflow_path,
-          "concurrently changed workflow",
-        );
+      else db.localFiles.set(helperPath, "concurrently changed workflow");
       return fn();
     };
     db.calls = [];
@@ -437,63 +443,46 @@ test("repeat init accepts equivalent manifest formatting and pool order", async 
 test("a missing local workflow still requires approval and restores only the file using the existing pool", async () => {
   const { app, db } = fixture();
   await app.init(options);
-  db.localFiles.delete(db.project.workflow_path);
+  db.localFiles.delete(helperPath);
   const before = structuredClone(db);
   db.calls = [];
   await assert.rejects(
     app.init({ ...options, yes: false }, async () => false),
     /cancelled/,
   );
-  assert.equal(db.localFiles.size, 1);
+  assert.equal(db.localFiles.size, 0);
   assert.equal(db.saves, before.saves);
   assert.equal((await app.plan(options)).already_configured, undefined);
   await app.init(options);
-  assert.ok(db.localFiles.has(db.project.workflow_path));
+  assert.ok(db.localFiles.has(helperPath));
   assert.deepEqual(db.machines, before.machines);
   assert.deepEqual(db.runners, before.runners);
   assert.equal(db.keys, before.keys);
   assert.ok(db.calls.every((call) => call === "GET"));
 });
-test("init upgrades only the generated inline wake block and repeat init never provisions again", async () => {
+test("legacy records retain their starter path but deleted starters are never recreated", async () => {
   const { app, db } = fixture();
   await app.init(options);
-  const state = db.project;
-  const caller = await wakeJobYaml(state);
-  const legacy =
-    db.localFiles
-      .get(state.workflow_path)
-      .replace(caller, await legacyWakeJobYaml(state)) +
-    "\n# My CI customizations\n";
-  db.localFiles.set(state.workflow_path, legacy);
-  db.localFiles.delete(".github/workflows/boxci-wake.yml");
+  const path = db.project.workflow_path;
+  const legacy = await workflow(db.project);
+  db.localFiles.set(path, legacy);
+  delete db.project.helper_only;
   const before = structuredClone(db);
-  const preview = await app.init({ ...options, dryRun: true });
-  assert.equal(preview.workflow_edits.length, 2);
-  assert.equal(preview.already_configured, undefined);
-  assert.equal(db.localFiles.get(state.workflow_path), legacy);
-  await assert.rejects(
-    app.init({ ...options, yes: false }, async () => false),
-    /cancelled/,
+  await app.init({ ...options, yes: false }, () =>
+    assert.fail("existing helper needs no approval"),
   );
-  db.calls = [];
-  await app.init(options);
-  assert.equal(
-    db.localFiles.get(state.workflow_path),
-    legacy.replace(await legacyWakeJobYaml(state), caller),
-  );
-  assert.equal(
-    db.localFiles.get(".github/workflows/boxci-wake.yml"),
-    await reusableWakeWorkflow(),
-  );
+  assert.equal(db.localFiles.get(path), legacy);
+  db.localFiles.delete(path);
   const saved = structuredClone(db.project);
   await app.init({ ...options, yes: false }, () =>
-    assert.fail("repeat must not prompt"),
+    assert.fail("missing starter must not trigger creation"),
   );
+  assert.equal(db.localFiles.has(path), false);
   assert.deepEqual(db.project, saved);
+  assert.equal(db.project.workflow_path, path);
   assert.deepEqual(db.machines, before.machines);
   assert.deepEqual(db.runners, before.runners);
   assert.equal(db.keys, before.keys);
-  assert.ok(db.calls.every((call) => call === "GET"));
 });
 test("helper conflicts or changes after approval block init before any setup mutation", async () => {
   const { app, db } = fixture();
@@ -511,30 +500,21 @@ test("helper conflicts or changes after approval block init before any setup mut
   assert.equal(db.localFiles.has(".github/workflows/boxci.yml"), false);
   assert.equal(db.machines.length, 0);
 });
-test("an interrupted setup with an old inline workflow resumes into the reusable helper without another runner", async () => {
+test("interrupted legacy setup resumes only its helper and keeps its existing VM and runner", async () => {
   const { app, db } = fixture();
   db.failSecret = true;
   await assert.rejects(app.init(options), /transfer failed/);
-  const state = db.project;
-  db.localFiles.set(
-    state.workflow_path,
-    db.localFiles
-      .get(state.workflow_path)
-      .replace(await wakeJobYaml(state), await legacyWakeJobYaml(state)),
-  );
-  db.localFiles.delete(".github/workflows/boxci-wake.yml");
+  delete db.project.helper_only;
+  db.localFiles.delete(helperPath);
   db.failSecret = false;
   db.calls = [];
   await app.init(options);
+  assert.deepEqual([...db.localFiles.keys()], [helperPath]);
+  assert.equal(db.project.helper_only, true);
   assert.equal(db.machines.length, 1);
   assert.equal(db.runners.length, 1);
   assert.equal(db.calls.includes("create"), false);
   assert.equal(db.calls.includes("exec"), false);
-  assert.doesNotMatch(db.localFiles.get(state.workflow_path), /python3/);
-  assert.equal(
-    db.localFiles.get(".github/workflows/boxci-wake.yml"),
-    await reusableWakeWorkflow(),
-  );
 });
 test("repeat init cannot report configured when the saved secret or pool variable is missing or different", async () => {
   for (const missing of ["secret", "variable", "different", "invalid"]) {
@@ -894,10 +874,8 @@ test("approved fresh setup archives the full old record and isolates GitHub reso
   for (const [k, v] of oldFiles) assert.equal(db.files.get(k), v);
   assert.deepEqual(db.runners.slice(0, oldRunners.length), oldRunners);
   assert.ok(db.secrets.has(old.secret));
-  const source = db.localFiles.get(state.workflow_path);
-  assert.ok(source.includes(state.pool_variable));
-  assert.ok(source.includes(state.secret));
-  assert.ok(source.includes(state.label));
+  assert.equal(db.localFiles.get(helperPath), await reusableWakeWorkflow());
+  assert.equal(db.localFiles.has(state.workflow_path), false);
   await app.init(options);
   assert.deepEqual(db.archives, [old]);
   assert.equal(db.keys, 2);
@@ -1054,6 +1032,8 @@ test("registration collision cannot replace another runner", () => {
 test("CI dispatch refuses unmerged defaults and allows an explicit reviewed branch", async () => {
   const { app, db } = fixture();
   await app.init(options);
+  db.project.helper_only = false;
+  db.project.managed_workflow = false;
   await assert.rejects(app.ciRun({ repo: "acme/project" }), /commit, and push/);
   const result = await app.ciRun({
     repo: "acme/project",
@@ -1139,6 +1119,7 @@ test("draft integration history stays scoped to its CI branch instead of unrelat
   const { app, db, github } = fixture();
   await app.init(options);
   db.project.workflow_delivery = undefined;
+  db.project.helper_only = false;
   db.project.branch = "legacy-ci-branch";
   db.project.pr_number = 1;
   db.prs.push({
@@ -1201,7 +1182,7 @@ for (const variableName of ["BOXCI_POOL", "INSTABOX_CI_POOL"]) {
       db.calls.every((call) => call === "GET"),
       true,
     );
-    assert.ok(plan.actions.some((a) => a.includes("workflow locally")));
+    assert.ok(plan.actions.some((a) => a.includes(helperPath)));
 
     const result = await app.init(options);
     assert.equal(result.pool_variable, variableName);
@@ -1210,8 +1191,8 @@ for (const variableName of ["BOXCI_POOL", "INSTABOX_CI_POOL"]) {
     assert.equal(db.calls.includes("create"), false);
     assert.equal(db.calls.includes("exec"), false);
     assert.equal(db.prs.length, 0);
-    const source = db.localFiles.get(result.workflow_path);
-    assert.ok(source.includes(`vars.${variableName}`));
+    assert.equal(db.localFiles.get(helperPath), await reusableWakeWorkflow());
+    assert.equal(db.localFiles.has(result.workflow_path), false);
 
     const grown = await app.add({ repo: options.repo, count: 1, yes: true });
     assert.equal(grown.pool.length, 2);
@@ -1233,12 +1214,6 @@ test("a recorded manifest remains authoritative when BOXCI_POOL also exists", as
   const { app, db, github } = fixture();
   await app.init(options);
   db.project.pool_variable = "CUSTOM_POOL";
-  db.localFiles.set(
-    db.project.workflow_path,
-    db.localFiles
-      .get(db.project.workflow_path)
-      .replace("vars.BOXCI_POOL", "vars.CUSTOM_POOL"),
-  );
   db.variables.set("CUSTOM_POOL", JSON.stringify(db.project.pool));
   db.variables.set("BOXCI_POOL", "unrelated manifest");
   const reads = [];
