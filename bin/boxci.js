@@ -9,6 +9,7 @@ import { App } from "../src/engine.js";
 import { DashboardManager } from "../src/dashboard-manager.js";
 import { redact } from "../src/process.js";
 import { Terminal } from "../src/terminal.js";
+import { commandHelp } from "../src/help.js";
 import { version } from "../src/version.js";
 let terminal = new Terminal();
 let output = new Terminal({ stream: process.stdout });
@@ -23,7 +24,7 @@ and push the workflow changes.
 
 Run boxci --help for all commands.
 `;
-const help = `boxci v${version} — BoxCI: GitHub Actions on InstaBox (not boxci.dev)
+const help = `boxci v${version} — BoxCI: GitHub Actions on InstaBox (https://github.com/balasivagn/boxci)
 
 Install globally from anywhere. Run init and migrate from the application
 checkout whose GitHub Actions you want to configure.
@@ -40,10 +41,14 @@ checkout whose GitHub Actions you want to configure.
   boxci dashboard status      Check the local dashboard process
   boxci dashboard stop        Stop the local dashboard; cloud runners stay as-is
 
+  boxci help [command]        Show help; also boxci <command> --help or -h
+
   --repo owner/repository     Otherwise inferred from the current Git checkout
+  --help, -h                  Show help for boxci or the given command
   --version, -v               Show the installed CLI version
   --migrate-workflows         After init, interactively migrate existing workflows
-  --match TEXT                migrate: select jobs whose runs-on contains TEXT
+  --match REGEX               migrate: select jobs whose runs-on matches REGEX
+                              (case-insensitive regular expression)
   --jobs file.yml:job,...     migrate: explicit job list (under .github/workflows)
   --dry-run                   Review without changing VMs/GitHub/local project
   --yes                       Apply the displayed plan without a terminal prompt
@@ -56,6 +61,7 @@ checkout whose GitHub Actions you want to configure.
   --command "install && test" Legacy setup metadata; no test job is generated
   --no-open                   Keep the dashboard server without opening a browser
   --foreground                Run the dashboard in this terminal for debugging
+  --port N                    dashboard: local port, 0-65535 (default 0: a free port)
 
 Existing provider/GitHub sessions are reused. No BoxCI account or token pasting.
 InstaBox CLI is used directly, with the bundled official npm CLI as fallback.
@@ -92,17 +98,29 @@ const options = Object.fromEntries([
   ...bools.map((k) => [k, { type: "boolean" }]),
 ]);
 options.version.short = "v";
+options.help.short = "h";
 try {
   const { values, positionals } = parseArgs({
     options,
     allowPositionals: true,
   });
+  // Help comes first so `boxci version --help` shows the version page.
+  if (positionals[0] === "help" || values.help) {
+    const words =
+      positionals[0] === "help" ? positionals.slice(1) : positionals;
+    const text = words.length ? commandHelp(words) : help;
+    // `boxci help unknown` is an error; `boxci unknown --help` keeps the global help.
+    if (!text && positionals[0] === "help")
+      throw new Error("Unknown command. Run boxci --help.");
+    console.log(text || help);
+    process.exit(0);
+  }
   if (values.version || positionals[0] === "version") {
     console.log(values.json ? JSON.stringify({ version }) : version);
     process.exit(0);
   }
-  if (values.help || !positionals.length) {
-    console.log(!values.help && !values.json ? welcome : help);
+  if (!positionals.length) {
+    console.log(values.json ? help : welcome);
     process.exit(0);
   }
   configureCertificateTrust();
