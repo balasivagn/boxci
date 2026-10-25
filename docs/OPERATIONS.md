@@ -115,7 +115,7 @@ After a failed setup, keep the saved project record and rerun `boxci init --dry-
 
 There is no automatic uninstall/teardown command. Review and perform cleanup explicitly:
 
-1. Move affected jobs back to your intended runners and remove their BoxCI wake dependencies/jobs. Disable or remove the starter workflow through your normal PR process. Ensure no workflow still targets the pool, and let active jobs finish or cancel them.
+1. Move affected jobs back to your intended runners: in each migrated workflow, restore the original `runs-on`, and remove `boxci-wake` from the job's `needs` and delete the `boxci-wake` job that `boxci migrate` added. Then remove the shared wake helper `.github/workflows/boxci-wake.yml` written by `init`, plus any legacy starter workflow (`.github/workflows/boxci.yml`) left by an older release, through your normal PR process. Ensure no workflow still targets the pool, and let active jobs finish or cancel them.
 2. Remove the dedicated repository runner registrations in GitHub settings and stop their services through official provider access.
 3. Revoke the dedicated CI key through the official InstaBox tooling, then remove its GitHub Actions secret and selected pool variable after checking they are not shared by another workflow.
 4. Review the dedicated VMs in the provider console and remove them manually only when no longer needed. Uninstalling the local npm CLI or closing the dashboard does not remove VMs or change provider usage.
