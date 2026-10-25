@@ -27,7 +27,7 @@ Hosted minutes run out. A spare machine as a runner turns into a queue the momen
 
 |       | Step                                           | What happens                                                                                                                                                          |
 | :---: | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1** | **Install** `npm install -g @balasivagn/boxci` | Installs the CLI. Run `boxci` for a welcome message and next steps.                                                                                                   |
+| **1** | **Install** `npm install -g @balasivagn/boxci` | Needs Node.js `^22.19.0 \|\| >=24.5.0`. Installs the CLI. Run `boxci --help` to list commands. A shorter `boxci` welcome message is _unreleased (main only)_.         |
 | **2** | **Initialize** `boxci init`                    | From your app's checkout, reuse your GitHub and InstaBox sign-ins, review the plan, then approve runner setup. Workflow changes stay local.                           |
 | **3** | **Migrate existing CI** `boxci migrate`        | Select existing workflow jobs to move onto the pool. Review and approve the local diff. Init creates only the helper; migration connects your existing CI jobs to it. |
 
@@ -47,15 +47,20 @@ Your agent handles the commands; you complete any official browser sign-in and a
 
 ## Quick start
 
-You need Node.js 22.19+ (22.x) or 24.5+, Git, admin access to a GitHub repository, and an InstaBox account with room for one more VM. See [full requirements](#requirements).
+**Prerequisite: Node.js `^22.19.0 || >=24.5.0`** (the `engines` range in [package.json](package.json): 22.19 or later on 22.x, or 24.5 or later). Check `node --version` before installing. On older Node, such as 20, npm only prints an `EBADENGINE` warning and installs anyway. `boxci --version` and `boxci --help` still work there, but setup and other commands stop with `System certificate trust requires Node.js 22.19+ or 24.5+`.
+
+You also need Git, admin access to a GitHub repository, and an InstaBox account with room for one more VM. See [full requirements](#requirements).
 
 **1. Install the CLI** from any directory:
 
 ```sh
+node --version
 npm install -g @balasivagn/boxci
 boxci --version
-boxci
+boxci --help
 ```
+
+_Unreleased (main only):_ running bare `boxci` prints a short welcome message with setup steps. In the current npm release, v0.4.0, bare `boxci` prints the same text as `boxci --help`.
 
 **2. Preview, then set up,** from your app's checkout:
 
@@ -149,7 +154,7 @@ Go deeper: [architecture and source map](docs/ARCHITECTURE.md) · [interactive d
 
 | Command                       | What it does                                                                       |
 | ----------------------------- | ---------------------------------------------------------------------------------- |
-| `boxci`                       | Show the welcome message and setup steps                                           |
+| `boxci`                       | _Unreleased (main only):_ show the welcome message. In v0.4.0 it prints `--help`   |
 | `boxci --version`             | Show the installed CLI version                                                     |
 | `boxci help [command]`        | Show help for boxci or one command; also `boxci <command> --help` or `-h`          |
 | `boxci init`                  | Set up runners, secret and pool variable; write only the wake helper               |
@@ -233,7 +238,7 @@ BoxCI is a young project and it tries to be precise about what it does. The deta
 
 <br>
 
-- Node.js **22.19+ (22.x) or 24.5+**, npm, Git and access to GitHub.
+- Node.js **`^22.19.0 || >=24.5.0`** (22.19+ on 22.x, or 24.5+), npm, Git and access to GitHub. npm does not block installs on older Node; it only warns.
 - A GitHub.com repository where you have **admin access**, with Actions enabled.
 - An InstaBox account with capacity for at least one additional VM, or an existing verified CI pool. Paused or stopped VMs still count toward quota.
 - A terminal for the official GitHub and InstaBox sign-in flows. Existing sessions are reused. BoxCI bundles the official InstaBox CLI as a fallback and can install a checksum-verified GitHub CLI privately when it is missing.
@@ -297,6 +302,7 @@ Runner service readiness does not prove GitHub connectivity. Fallback is chosen 
 <br>
 
 - BoxCI is at **v0.4.0**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
+- This README tracks the `main` branch. Behaviour that is on `main` but not yet in the npm release is marked _unreleased (main only)_; to try it, use **Install from source (`main`)** in the Quick start install tips.
 - Commands in this README use a POSIX shell. Native Linux and Windows bootstrap and fresh-account authentication still need verification. Details are in [validation coverage](docs/VALIDATION.md).
 - There is no automatic uninstall. Cleanup steps are in [stop using BoxCI](docs/OPERATIONS.md#stop-using-boxci).
 
@@ -307,7 +313,7 @@ Runner service readiness does not prove GitHub connectivity. Fallback is chosen 
 
 <br>
 
-BoxCI is an independent open-source integration. It is not built or endorsed by InstaBox, and it is **not affiliated with [boxci.dev](https://boxci.dev)**.
+BoxCI is an independent open-source integration. It is not built or endorsed by InstaBox, and it is **not affiliated with boxci.dev**. The project's home is [github.com/balasivagn/boxci](https://github.com/balasivagn/boxci).
 
 </details>
 
