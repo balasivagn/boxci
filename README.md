@@ -151,6 +151,7 @@ Go deeper: [architecture and source map](docs/ARCHITECTURE.md) · [interactive d
 | ----------------------------- | ---------------------------------------------------------------------------------- |
 | `boxci`                       | Show the welcome message and setup steps                                           |
 | `boxci --version`             | Show the installed CLI version                                                     |
+| `boxci help [command]`        | Show help for boxci or one command; also `boxci <command> --help` or `-h`          |
 | `boxci init`                  | Set up runners, secret and pool variable; write only the wake helper               |
 | `boxci init --dry-run`        | Preview setup without creating anything                                            |
 | `boxci ci run`                | Dispatch a connected application workflow; use `--workflow file.yml` to select one |
@@ -167,7 +168,7 @@ Go deeper: [architecture and source map](docs/ARCHITECTURE.md) · [interactive d
 
 Common flags: `--dry-run` previews any change, `--yes` applies a reviewed plan without a prompt, `--json` returns structured output, and `--repo owner/repository` selects the repository. `init` and `migrate` require its matching checkout; monitoring commands can run elsewhere. `status`, `doctor` and `dashboard` never run guest commands or wake VMs.
 
-The dashboard runs in the background, so you can close the terminal. Run `boxci dashboard` again to reopen it, or `boxci dashboard stop` to stop it. Use `--foreground` for debugging and `--no-open` to skip launching a browser. It does not start automatically after a reboot. See [dashboard operations](docs/OPERATIONS.md#check-the-pool).
+The dashboard runs in the background, so you can close the terminal. Run `boxci dashboard` again to reopen it, or `boxci dashboard stop` to stop it. Use `--foreground` for debugging and `--no-open` to skip launching a browser. `--port N` chooses the local port (0-65535; the default, 0, picks a free port); to change the port of a running dashboard, stop it first. It does not start automatically after a reboot. See [dashboard operations](docs/OPERATIONS.md#check-the-pool).
 
 ## Move existing jobs onto the pool
 
@@ -213,7 +214,7 @@ BoxCI ships an agent skill at [`skills/boxci-migrate/SKILL.md`](skills/boxci-mig
 
 <br>
 
-- `--match` is a regular expression tested against each job's existing `runs-on` value.
+- `--match` is a case-insensitive regular expression tested against each job's existing `runs-on` value. It matches anywhere in the value unless you anchor it. `--jobs` takes precedence over `--match`.
 - Pick jobs that run on **Linux x64** and whose steps work on both the InstaBox VM and the hosted Ubuntu fallback.
 - Migration changes scheduling only. Toolchains, services and caches stay as they are.
 - Only static `runs-on` values are scanned. Dynamic expressions are skipped. Review matrix jobs and complex `needs` by hand.
