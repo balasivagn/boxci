@@ -1,0 +1,53 @@
+name: Bug report
+description: Report something in BoxCI that does not work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, API keys, tokens or private logs. Report security problems privately as described in [SECURITY.md](https://github.com/balasivagn/boxci/blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The commands you ran (for example `boxci init --dry-run`, `boxci status`, `boxci doctor`) and the order you ran them in.
+    validations:
+      required: true
+  - type: input
+    id: boxci-version
+    attributes:
+      label: BoxCI version
+      description: Output of `boxci --version`.
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: Output of `node --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Relevant output
+      description: Command output or workflow logs, with any secrets, account identifiers or private repository names removed.
+      render: text
