@@ -27,7 +27,7 @@ Hosted minutes run out. A spare machine as a runner turns into a queue the momen
 
 |       | Step                                           | What happens                                                                                                                                                          |
 | :---: | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1** | **Install** `npm install -g @balasivagn/boxci` | Needs Node.js `^22.19.0 \|\| >=24.5.0`. Installs the CLI. Run `boxci --help` to list commands. A shorter `boxci` welcome message is _unreleased (main only)_.         |
+| **1** | **Install** `npm install -g @balasivagn/boxci` | Needs Node.js `^22.19.0 \|\| >=24.5.0`. Installs the CLI. Run `boxci` for a welcome message and next steps, or `boxci --help` to list commands.                       |
 | **2** | **Initialize** `boxci init`                    | From your app's checkout, reuse your GitHub and InstaBox sign-ins, review the plan, then approve runner setup. Workflow changes stay local.                           |
 | **3** | **Migrate existing CI** `boxci migrate`        | Select existing workflow jobs to move onto the pool. Review and approve the local diff. Init creates only the helper; migration connects your existing CI jobs to it. |
 
@@ -57,10 +57,10 @@ You also need Git, admin access to a GitHub repository, and an InstaBox account 
 node --version
 npm install -g @balasivagn/boxci
 boxci --version
-boxci --help
+boxci
 ```
 
-_Unreleased (main only):_ running bare `boxci` prints a short welcome message with setup steps. In the current npm release, v0.4.0, bare `boxci` prints the same text as `boxci --help`.
+Bare `boxci` prints a short welcome message with setup steps. `boxci --help` lists every command.
 
 **2. Preview, then set up,** from your app's checkout:
 
@@ -154,7 +154,7 @@ Go deeper: [architecture and source map](docs/ARCHITECTURE.md) · [interactive d
 
 | Command                       | What it does                                                                       |
 | ----------------------------- | ---------------------------------------------------------------------------------- |
-| `boxci`                       | _Unreleased (main only):_ show the welcome message. In v0.4.0 it prints `--help`   |
+| `boxci`                       | Show the welcome message and setup steps                                           |
 | `boxci --version`             | Show the installed CLI version                                                     |
 | `boxci help [command]`        | Show help for boxci or one command; also `boxci <command> --help` or `-h`          |
 | `boxci init`                  | Set up runners, secret and pool variable; write only the wake helper               |
@@ -301,8 +301,7 @@ Runner service readiness does not prove GitHub connectivity. Fallback is chosen 
 
 <br>
 
-- BoxCI is at **v0.4.0**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
-- This README tracks the `main` branch. Behaviour that is on `main` but not yet in the npm release is marked _unreleased (main only)_; to try it, use **Install from source (`main`)** in the Quick start install tips.
+- BoxCI is at **v0.4.1**, an early release. The npm package is [`@balasivagn/boxci`](https://www.npmjs.com/package/@balasivagn/boxci).
 - Commands in this README use a POSIX shell. Native Linux and Windows bootstrap and fresh-account authentication still need verification. Details are in [validation coverage](docs/VALIDATION.md).
 - There is no automatic uninstall. Cleanup steps are in [stop using BoxCI](docs/OPERATIONS.md#stop-using-boxci).
 
@@ -356,7 +355,7 @@ npm pack --dry-run
   ```sh
   mkdir -p dist
   npm run pack:local
-  npm install --global ./dist/balasivagn-boxci-0.4.0.tgz
+  npm install --global ./dist/balasivagn-boxci-0.4.1.tgz
   ```
 
 - More: [developer experience contract](docs/DEVELOPER_EXPERIENCE.md) · [design tokens](docs/DESIGN.md)
