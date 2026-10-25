@@ -6,7 +6,6 @@ import { Provider } from "./provider.js";
 import { GitHub } from "./github.js";
 import * as store from "./store.js";
 import { protect, redact } from "./process.js";
-import { workflow } from "./workflow.js";
 import {
   buildMigratePlan,
   applyMigratePlan,
@@ -16,11 +15,7 @@ import {
 import { ownsVm, runnerAdoptVerifyScript, runnerInstallRoot } from "./brand.js";
 import { credentialResponse, keyMetadata, validKeyId } from "./credentials.js";
 import { Workspace } from "./workspace.js";
-import {
-  REUSABLE_WAKE_PATH,
-  reusableWakeWorkflow,
-  upgradeWakeJob,
-} from "./wake.js";
+import { REUSABLE_WAKE_PATH, reusableWakeWorkflow } from "./wake.js";
 export { runnerInstallRoot } from "./brand.js";
 export const defaults = {
   secret: "BOXCI_API_KEY",
@@ -31,6 +26,9 @@ const labelPattern = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/;
 const generic = new Set(["self-hosted", "linux", "x64", "arm64"]);
 const completeSetup = (project) =>
   ["awaiting_merge", "merged", "ready_to_commit"].includes(project.status);
+const helperOnly = (project) =>
+  project.managed_workflow !== false &&
+  (project.helper_only || project.workflow_delivery === "local");
 function samePool(raw, pool) {
   try {
     const saved = JSON.parse(raw);
@@ -344,10 +342,6 @@ export class App {
         }
       }
     }
-    if (!previous && !command)
-      throw new Error(
-        'No unambiguous test command found. Re-run with --command "your install and test command".',
-      );
     const secret =
       previous?.secret ||
       options.secret ||
@@ -440,49 +434,30 @@ export class App {
               secretExists
                 ? "Reuse the selected Actions secret."
                 : "Create a 30-day machine read/write key and transfer it directly to the repository secret. This key can execute commands on all VMs in this account.",
-              `Write the workflow locally at ${workflowPath}. Review git diff, commit, and push; no branch or PR is created.`,
+              `Write only ${REUSABLE_WAKE_PATH} locally. Review git diff, commit, and push; no starter workflow, branch or PR is created.`,
             ],
     };
     if (fresh)
       result.actions.unshift(
         `The saved pool belongs to InstaBox ${saved.account.login}. Set up a fresh pool as ${identity.login}.`,
         `Preserve the previous project record at ${result.previous_project.archive_path}. Existing VMs, runners, credentials, variables and workflows stay in place.`,
-        `Use separate Actions variable ${poolVariable}, secret ${secret} and workflow ${workflowPath}. Review both workflows to avoid duplicate CI.`,
+        `Use separate Actions variable ${poolVariable} and secret ${secret}. Connect your existing CI through the shared wake helper.`,
       );
     if (result.managed_workflow) {
-      const generatedWorkflow = await workflow(result);
-      result.workflow_edit = await this.workspace.review(
-        repo,
-        workflowPath,
-        generatedWorkflow,
-        { preserveExisting: !!previous || !!pool },
-      );
+      result.helper_only = true;
       result.workflow_delivery = "local";
-      if (result.workflow_edit.before !== null)
-        result.workflow_edit.after = await upgradeWakeJob(
-          result.workflow_edit.after,
-          result,
-        );
-      if (
-        !result.adopt_only &&
-        result.workflow_edit.after !== generatedWorkflow
-      )
-        throw new Error(
-          "The existing workflow has custom changes. It was not overwritten; review it before retrying setup.",
-        );
-      const helper = await this.workspace.review(
+      result.workflow_edit = await this.workspace.review(
         repo,
         REUSABLE_WAKE_PATH,
         await reusableWakeWorkflow(),
       );
-      result.workflow_edits = [result.workflow_edit, helper];
-      if (result.workflow_edits.some((edit) => edit.before !== edit.after))
+      result.workflow_edits = [result.workflow_edit];
+      if (
+        result.adopt_only &&
+        result.workflow_edit.before !== result.workflow_edit.after
+      )
         result.actions.push(
-          `Write the shared wake helper at ${REUSABLE_WAKE_PATH} and its local caller. Review and commit both files together.`,
-        );
-      if (result.adopt_only)
-        result.actions.push(
-          "Keep the existing integration and leave its workflow available locally for review. Existing branches and PRs are preserved.",
+          `Write only the shared wake helper at ${REUSABLE_WAKE_PATH}. Run boxci migrate to connect your existing CI jobs; no starter or build/test workflow is created.`,
         );
       if (result.adopt_only) {
         if (!secretExists)
@@ -544,8 +519,8 @@ export class App {
           message:
             "Already configured. No setup changes needed.\n" +
             (pending
-              ? "Workflow has local changes. Review git diff, commit, and push through your normal process."
-              : "Workflow is committed locally. Run boxci doctor to check readiness on GitHub."),
+              ? "Wake helper has local changes. Review git diff, commit, and push through your normal process."
+              : "Wake helper is committed locally. Run boxci doctor to check readiness on GitHub."),
         };
         this.emit({ type: "adopted", project: result });
         return result;
@@ -556,7 +531,7 @@ export class App {
         if (workflow_edit) {
           adopted.status = "ready_to_commit";
           adopted.message =
-            "Workflow changes are local. Review git diff, commit, and push.";
+            "Wake helper changes are local. Run boxci migrate to connect your existing CI, then review git diff, commit, and push.";
         }
         await this.storage.saveProject(adopted);
         this.emit({ type: "adopted", project: adopted });
@@ -573,7 +548,10 @@ export class App {
         pool: plan.pool,
         pending: [],
       };
-      if (workflow_edit) state.workflow_delivery = "local";
+      if (workflow_edit) {
+        state.workflow_delivery = "local";
+        state.helper_only = !!setup.helper_only;
+      }
       await this.storage.saveProject(state);
       await this.provision(state, state.target_count || plan.count);
       this.emit({
@@ -749,7 +727,6 @@ export class App {
   }
   async configure(state) {
     await this.guard(state);
-    if (!state.command) throw new Error("Test command missing.");
     const repo = state.repo;
     await this.variable(state);
     if (!(await this.github.hasSecret(repo, state.secret))) {
@@ -787,7 +764,7 @@ export class App {
     await this.storage.saveProject(state);
     state.status = "ready_to_commit";
     state.message =
-      "Workflow changes are local. Review git diff, commit, and push.";
+      "Wake helper changes are local. Run boxci migrate to connect your existing CI, then review git diff, commit, and push.";
     await this.storage.saveProject(state);
     this.emit({ type: "complete", project: state });
   }
@@ -938,6 +915,12 @@ export class App {
     });
   }
   async workflowPublished(project) {
+    if (helperOnly(project))
+      return !!(await this.github.content(
+        project.repo,
+        REUSABLE_WAKE_PATH,
+        project.base,
+      ));
     const source = await this.github.content(
       project.repo,
       project.workflow_path,
@@ -969,6 +952,7 @@ export class App {
       jobs = [],
       historyError = null;
     let pr = null;
+    let consumers = [];
     const localWorkflow = project.workflow_delivery === "local";
     const workflowPublished = localWorkflow
       ? await this.workflowPublished(project)
@@ -990,11 +974,23 @@ export class App {
     }
     try {
       if (!localWorkflow || workflowPublished) {
-        runs = await this.github.recent(
-          repo,
-          project.workflow_path,
-          pr && !pr.merged ? project.branch : undefined,
-        );
+        if (helperOnly(project)) {
+          consumers = await this.github.consumerWorkflows(repo, project.base);
+          runs = (
+            await Promise.all(
+              consumers.map((path) => this.github.recent(repo, path)),
+            )
+          )
+            .flat()
+            .sort((a, b) => (b.id || 0) - (a.id || 0))
+            .slice(0, 5);
+        } else {
+          runs = await this.github.recent(
+            repo,
+            project.workflow_path,
+            pr && !pr.merged ? project.branch : undefined,
+          );
+        }
         for (const r of runs.slice(0, 3)) {
           const data = await this.github.api(
             `repos/${repo}/actions/runs/${r.id}/jobs?per_page=100`,
@@ -1009,7 +1005,11 @@ export class App {
       repo,
       account: identity,
       label: project.label,
-      workflow_path: project.workflow_path,
+      workflow_path: helperOnly(project)
+        ? REUSABLE_WAKE_PATH
+        : project.workflow_path,
+      helper_only: !!helperOnly(project),
+      consumer_workflows: consumers,
       workflow_delivery: project.workflow_delivery,
       workflow_published: workflowPublished,
       checked_at: new Date().toISOString(),
@@ -1116,7 +1116,9 @@ export class App {
       {
         name:
           state.workflow_delivery === "local"
-            ? "Workflow published"
+            ? state.helper_only
+              ? "Wake helper published"
+              : "Workflow published"
             : "Workflow merge",
         ok:
           state.workflow_delivery === "local"
@@ -1143,6 +1145,14 @@ export class App {
           "Managed externally; expiry cannot be read from GitHub secrets",
       },
     ];
+    if (state.helper_only)
+      checks.push({
+        name: "CI workflow connected",
+        ok: state.consumer_workflows.length > 0,
+        detail: state.consumer_workflows.length
+          ? state.consumer_workflows.join(", ")
+          : "Run boxci migrate to connect your existing CI, then review, commit, push and merge its changes.",
+      });
     return { repo: state.repo, checks, ready: checks.every((c) => c.ok) };
   }
   async wake(options = {}) {
@@ -1162,6 +1172,38 @@ export class App {
   async ciRun(options = {}) {
     const { project } = await this.context(options.repo);
     if (!project) throw new Error("Run boxci init first.");
+    if (helperOnly(project)) {
+      const ref = options.ref || project.base;
+      if (!(await this.workflowPublished(project)))
+        throw new Error(
+          "Review, commit, and push the wake helper to the default branch before running CI.",
+        );
+      const consumers = await this.github.consumerWorkflows(project.repo, ref);
+      const selected = options.workflow
+        ? options.workflow.startsWith(".github/workflows/")
+          ? options.workflow
+          : `.github/workflows/${options.workflow}`
+        : consumers.length === 1
+          ? consumers[0]
+          : null;
+      if (!selected || !consumers.includes(selected))
+        throw new Error(
+          consumers.length
+            ? "Choose your application workflow with --workflow file.yml. The reusable wake helper cannot be dispatched directly."
+            : "No application workflow calls the wake helper on this ref. Run boxci migrate, then review, commit, and push its changes first.",
+        );
+      await this.github.api(
+        `repos/${project.repo}/actions/workflows/${selected.split("/").at(-1)}/dispatches`,
+        { method: "POST", body: { ref } },
+      );
+      return {
+        repo: project.repo,
+        ref,
+        workflow: selected,
+        message:
+          "CI dispatch requested. Use boxci status to observe the actual result.",
+      };
+    }
     let ref = options.ref;
     if (!ref) {
       if (

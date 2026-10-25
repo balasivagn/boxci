@@ -17,13 +17,13 @@ const help = `boxci v${version} — BoxCI: GitHub Actions on InstaBox (not boxci
 Install globally from anywhere. Run init and migrate from the application
 checkout whose GitHub Actions you want to configure.
 
-  boxci init                  Set up runners and leave a local workflow diff
+  boxci init                  Set up runners and write only the shared wake helper
   boxci status                Pool, VM states, runners and recent CI
   boxci doctor                Explain setup, account and credential problems
   boxci auth renew            Review and rotate the repository CI credential
   boxci pool add --count 1    Review and add dedicated VM/runners
   boxci wake                  Explicitly wake the configured pool
-  boxci ci run                Run the merged workflow (--ref tests a branch)
+  boxci ci run                Run a connected CI workflow (--ref tests a branch)
   boxci migrate               Rewire selected workflow jobs to the InstaBox pool
   boxci dashboard             Start/reopen the local dashboard in the background
   boxci dashboard status      Check the local dashboard process
@@ -41,7 +41,8 @@ checkout whose GitHub Actions you want to configure.
   --provider google|github    Only used if InstaBox sign-in is needed
   --device                    Use InstaBox's native device login (GitHub)
   --secret NAME               Explicitly choose/reuse an Actions secret
-  --command "install && test" Override the detected test command
+  --workflow file.yml         ci run: select your application workflow
+  --command "install && test" Legacy setup metadata; no test job is generated
   --no-open                   Keep the dashboard server without opening a browser
   --foreground                Run the dashboard in this terminal for debugging
 
@@ -61,6 +62,7 @@ const strings = [
   "session-file",
   "match",
   "jobs",
+  "workflow",
 ];
 const bools = [
   "help",

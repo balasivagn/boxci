@@ -154,4 +154,35 @@ export class GitHub {
       )
     ).workflow_runs;
   }
+  async consumerWorkflows(repo, ref) {
+    let files;
+    try {
+      files = await this.api(
+        `repos/${repo}/contents/.github/workflows?ref=${encodeURIComponent(ref)}`,
+      );
+    } catch (error) {
+      if (/404/.test(error.message)) return [];
+      throw error;
+    }
+    if (!Array.isArray(files))
+      throw new Error("GitHub did not return a workflow directory.");
+    const matches = await Promise.all(
+      files
+        .filter(
+          (file) =>
+            file.type === "file" &&
+            /^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/.test(file.path) &&
+            file.path !== ".github/workflows/boxci-wake.yml",
+        )
+        .map(async (file) => {
+          const source = await this.content(repo, file.path, ref);
+          return /^\s+uses:\s*["']?\.\/\.github\/workflows\/boxci-wake\.yml["']?\s*(?:#.*)?$/m.test(
+            source || "",
+          )
+            ? file.path
+            : null;
+        }),
+    );
+    return matches.filter(Boolean).sort();
+  }
 }

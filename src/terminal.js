@@ -80,7 +80,7 @@ export class Terminal {
     for (const edit of p.workflow_edits ||
       (p.workflow_edit ? [p.workflow_edit] : []))
       lines.push(`  ${this.paint("dim", "Local file")}  ${edit.relPath}`);
-    if (p.command)
+    if (p.command && !p.helper_only)
       lines.push(`  ${this.paint("dim", "Test      ")}  ${p.command}`);
     lines.push(
       "",

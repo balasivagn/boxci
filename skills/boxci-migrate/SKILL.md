@@ -8,7 +8,7 @@ description: >-
 
 # BoxCI workflow migration
 
-BoxCI provisions runners with `boxci init` (GitHub secret, pool variable, local `boxci.yml` workflow). To **retarget existing workflows** instead of only using the starter workflow, run **`boxci migrate`** from the **target repository checkout** (same machine that ran init).
+BoxCI provisions runners with `boxci init` (GitHub secret, pool variable, local reusable `boxci-wake.yml` helper only). To **retarget existing workflows** using the shared wake helper, run **`boxci migrate`** from the **target repository checkout** (same machine that ran init).
 
 ## Prerequisites
 

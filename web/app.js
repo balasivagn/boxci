@@ -114,13 +114,21 @@ function render(data) {
     (j) => j.status === "queued",
   ).length;
   $("pool-label").textContent = data.label;
-  const localPending = data.workflow_published === false;
+  const disconnected =
+    data.helper_only &&
+    data.workflow_published &&
+    !data.consumer_workflows?.length;
+  const localPending = data.workflow_published === false || disconnected;
   $("migration").hidden = !localPending && (!data.pr || data.pr.merged);
   $("migration-title").textContent = localPending
-    ? "Workflow changes are local"
+    ? disconnected
+      ? "Connect your existing CI"
+      : "Workflow changes are local"
     : "CI migration awaits merge";
   $("migration-detail").textContent = localPending
-    ? `Review git diff, then commit and push ${data.workflow_path} through your normal process.`
+    ? disconnected
+      ? "Run boxci migrate, then review, commit and push the changes to your application workflows."
+      : `Review git diff, then commit and push ${data.workflow_path} through your normal process.`
     : data.pr?.draft
       ? "The runner pool is configured. Normal CI switches after the draft PR is reviewed and merged."
       : "Review the workflow before merging. CI wake works with this dashboard closed.";
