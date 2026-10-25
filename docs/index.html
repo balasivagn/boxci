@@ -213,6 +213,10 @@
         local diff you review. It ships with an agent skill, so your coding
         agent can do the migration with you.
       </p>
+      <p>
+        Pick jobs that run on <strong>Linux x64</strong> and whose steps work on
+        both the InstaBox VM and the hosted Ubuntu fallback.
+      </p>
 
       <h2 id="start">Get started</h2>
       <ol class="steps">
@@ -323,13 +327,6 @@ boxci migrate</code></pre>
               <td>Show the installed CLI version</td>
             </tr>
             <tr>
-              <td><code>boxci help [command]</code></td>
-              <td>
-                Show help for boxci or one command; also
-                <code>boxci &lt;command&gt; --help</code>
-              </td>
-            </tr>
-            <tr>
               <td><code>boxci init</code></td>
               <td>
                 Set up runners, secret and pool variable; write only the wake
@@ -379,8 +376,8 @@ boxci migrate</code></pre>
         </table>
       </div>
       <p class="muted">
-        The full command list and flags are in the
-        <a href="https://github.com/balasivagn/boxci#commands">README</a>.
+        Run <code>boxci --help</code> to see every command and flag in your
+        installed version.
       </p>
 
       <h2 id="requirements">Requirements</h2>
