@@ -1,9 +1,39 @@
+import { execFileSync } from "node:child_process";
 import { requireInteractive } from "./process.js";
 import { runGh } from "./tooling.js";
 import { validateRepo } from "./store.js";
+// Same accepted forms as Workspace.root, plus the https://user[:token]@ userinfo
+// that insteadOf rewrites can add. The host must be exactly github.com. Callers
+// must never echo the URL, because it can carry a credential.
+const GITHUB_REMOTE =
+  /^(?:https:\/\/(?:[^\s/\\?#@]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([^/]+\/[^/]+?)(?:\.git)?\/?$/i;
+export function repoFromRemote(url) {
+  const repo = String(url ?? "")
+    .trim()
+    .match(GITHUB_REMOTE)?.[1];
+  if (!repo) return null;
+  try {
+    return validateRepo(repo);
+  } catch {
+    return null;
+  }
+}
+const readGit = (args, cwd) =>
+  execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
 export class GitHub {
-  constructor({ exec = runGh, interactive = process.stdin.isTTY } = {}) {
+  constructor({
+    exec = runGh,
+    interactive = process.stdin.isTTY,
+    git = readGit,
+    cwd = process.cwd(),
+  } = {}) {
     this.interactive = interactive;
+    this.git = git;
+    this.cwd = cwd;
     this.workflowConsentRequested = false;
     this.exec = exec;
   }
@@ -94,10 +124,37 @@ export class GitHub {
         ).trim(),
       );
     } catch {
+      // gh may be signed out or missing; the checkout's remote still names it.
+      return this.repoFromGitRemote();
+    }
+  }
+  repoFromGitRemote() {
+    let remotes;
+    try {
+      remotes = this.git(["remote", "-v"], this.cwd);
+    } catch {
       throw new Error(
         "Run inside a Git checkout, or pass --repo owner/repository.",
       );
     }
+    // Remote name -> distinct repositories (case-insensitive) it points at.
+    const byRemote = new Map();
+    for (const line of String(remotes).split("\n")) {
+      const [name, url] = line.split(/\s+/);
+      const repo = repoFromRemote(url);
+      if (!name || !repo) continue;
+      if (!byRemote.has(name)) byRemote.set(name, new Map());
+      byRemote.get(name).set(repo.toLowerCase(), repo);
+    }
+    const distinct =
+      byRemote.get("origin") ??
+      new Map([...byRemote.values()].flatMap((repos) => [...repos]));
+    if (distinct.size === 1) return [...distinct.values()][0];
+    throw new Error(
+      distinct.size
+        ? "This checkout has several GitHub remotes. Pass --repo owner/repository."
+        : "No GitHub remote found in this checkout, and GitHub CLI could not identify the repository. Pass --repo owner/repository, or run gh auth login.",
+    );
   }
   async runners(repo) {
     let out = [];
