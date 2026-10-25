@@ -13,6 +13,17 @@ export function redact(value) {
     "[redacted]",
   );
 }
+// Some CLIs (InstaBox with --json) exit non-zero with an empty stderr and
+// report the error as JSON on stdout. Surface only that error message, never
+// the rest of stdout.
+function stdoutErrorMessage(stdout) {
+  try {
+    const message = JSON.parse(stdout)?.error?.message;
+    return typeof message === "string" ? message.trim() : "";
+  } catch {
+    return "";
+  }
+}
 export function run(
   command,
   args = [],
@@ -52,7 +63,9 @@ export function run(
       else {
         const e = new Error(
           redact(
-            stderr.trim() || `${command} exited ${code ?? "after timeout"}`,
+            stderr.trim() ||
+              stdoutErrorMessage(stdout) ||
+              `${command} exited ${code ?? "after timeout"}`,
           ),
         );
         e.code = code;

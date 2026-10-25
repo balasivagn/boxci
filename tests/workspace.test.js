@@ -15,8 +15,10 @@ import { join } from "node:path";
 import { Workspace } from "../src/workspace.js";
 import { buildMigratePlan, applyMigratePlan } from "../src/migrate.js";
 import { legacyWakeJobYaml, reusableWakeWorkflow } from "../src/wake.js";
+import { isolateGitConfig } from "./helpers/git-config.js";
 
 async function fixture(t) {
+  await isolateGitConfig(t);
   const root = await realpath(await mkdtemp(join(tmpdir(), "boxci-checkout-")));
   t.after(() => rm(root, { recursive: true, force: true }));
   const git = (...args) =>
