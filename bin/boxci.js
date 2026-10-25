@@ -12,6 +12,17 @@ import { Terminal } from "../src/terminal.js";
 import { version } from "../src/version.js";
 let terminal = new Terminal();
 let output = new Terminal({ stream: process.stdout });
+const welcome = `BoxCI v${version}
+GitHub Actions on InstaBox.
+
+Get started: boxci init
+Existing CI? Run boxci migrate after init.
+
+Run init and migrate from your application's checkout, then review, commit,
+and push the workflow changes.
+
+Run boxci --help for all commands.
+`;
 const help = `boxci v${version} — BoxCI: GitHub Actions on InstaBox (not boxci.dev)
 
 Install globally from anywhere. Run init and migrate from the application
@@ -91,7 +102,7 @@ try {
     process.exit(0);
   }
   if (values.help || !positionals.length) {
-    console.log(help);
+    console.log(!values.help && !values.json ? welcome : help);
     process.exit(0);
   }
   configureCertificateTrust();

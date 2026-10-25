@@ -12,6 +12,24 @@ const run = (...args) =>
     env: { ...process.env, PATH: "" },
     encoding: "utf8",
   });
+test("bare CLI welcomes users with setup and migration steps without external CLIs", () => {
+  for (const args of [[], ["--no-color"]]) {
+    const result = run(...args);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(
+      result.stdout,
+      new RegExp(`^BoxCI v${version.replaceAll(".", "\\.")}\\n`),
+    );
+    assert.match(result.stdout, /GitHub Actions on InstaBox\./);
+    assert.match(result.stdout, /Get started: boxci init/);
+    assert.match(result.stdout, /Existing CI\? Run boxci migrate after init\./);
+    assert.match(result.stdout, /application's checkout/);
+    assert.match(result.stdout, /review, commit,\s+and push/);
+    assert.match(result.stdout, /boxci --help/);
+    assert.doesNotMatch(result.stdout, /\x1b|--provider/);
+    assert.equal(result.stderr, "");
+  }
+});
 test("installed version is available without a Git checkout, sign-in or external CLI", () => {
   for (const flag of ["--version", "-v", "version"]) {
     const result = run(flag);
@@ -34,4 +52,5 @@ test("help shows version and application-checkout guidance before any setup", ()
   assert.match(result.stdout, /dashboard status/);
   assert.match(result.stdout, /dashboard stop/);
   assert.match(result.stdout, /--foreground/);
+  assert.doesNotMatch(result.stdout, /Get started:/);
 });

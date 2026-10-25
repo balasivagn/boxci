@@ -23,25 +23,19 @@ Hosted minutes run out. A spare machine as a runner turns into a queue the momen
 
 **Already have CI?** `boxci migrate` moves your existing jobs onto the pool, Blacksmith or `ubuntu-latest` alike, as a local diff you review. It ships with an agent skill, so your coding agent can do the migration with you.
 
-## How it works in 3 steps
+## Get started in 3 steps
 
-|       | Step                    | What happens                                                                                                                                                               |
-| :---: | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1** | **`boxci init`**        | Reuses your GitHub and InstaBox sign-ins, shows the full plan, then creates a dedicated VM and registers it as a runner. No cloud resources are created until you approve. |
-| **2** | **Review and publish**  | Setup leaves workflow changes in your checkout. Review, commit, and push through your usual process. BoxCI creates no branch or PR.                                        |
-| **3** | **Jobs run on your VM** | A small hosted job wakes the pool for each trusted run, and GitHub hands the build to your runner. Between builds, the VMs pause as usual.                                 |
+|       | Step                                           | What happens                                                                                                                                                          |
+| :---: | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1** | **Install** `npm install -g @balasivagn/boxci` | Installs the CLI. Run `boxci` for a welcome message and next steps.                                                                                                   |
+| **2** | **Initialize** `boxci init`                    | From your app's checkout, reuse your GitHub and InstaBox sign-ins, review the plan, then approve runner setup. Workflow changes stay local.                           |
+| **3** | **Migrate existing CI** `boxci migrate`        | Select existing workflow jobs to move onto the pool. Review and approve the local diff. Init creates only the helper; migration connects your existing CI jobs to it. |
 
-## Why BoxCI
-
-- **Bring your existing CI.** `boxci migrate` retargets the jobs you already have (Blacksmith `runs-on` labels, for example) in one command, as a local diff you review and commit.
-- **Agent-ready.** The bundled [`boxci-migrate` skill](skills/boxci-migrate/SKILL.md) teaches your coding agent to drive `boxci migrate` instead of hand-editing YAML.
-- **Reviewable from start to finish.** A dry run shows exactly what will be created. The real run leaves workflow files locally for your review.
-- **Nothing extra to keep running.** No keepalive, no webhook server, no BoxCI account. The wake step lives inside GitHub Actions.
-- **Close your laptop after setup.** CI wakes the pool on its own. The CLI and dashboard are only for you.
-- **A dashboard that watches without touching.** `boxci dashboard` is local, authenticated and read-only. It never wakes a VM.
-- **Hosted fallback built in.** Fork PRs, or a pool that is not fully ready, run on hosted Ubuntu instead. Fork code never receives your provider key.
+Then review, commit, and push the workflow changes through your usual process. BoxCI creates no branch or PR. Once published, CI wakes your pool for trusted runs and the VMs pause again when idle.
 
 ## Set up with a coding agent
+
+Or let your coding agent handle installation, setup, and migration.
 
 Open your app's checkout in any coding agent with terminal access and paste:
 
@@ -60,7 +54,7 @@ You need Node.js 22.19+ (22.x) or 24.5+, Git, admin access to a GitHub repositor
 ```sh
 npm install -g @balasivagn/boxci
 boxci --version
-boxci --help
+boxci
 ```
 
 **2. Preview, then set up,** from your app's checkout:
@@ -75,7 +69,15 @@ Run setup in the application repository whose CI you want to change. You do not 
 
 The dry run shows the account, repository, runner label and every planned action. It creates no VMs, runners, keys or repository settings. `boxci init` asks you to approve that plan, then provisions the VM, installs the CI secret and pool variable, and writes only `.github/workflows/boxci-wake.yml`. It never creates or restores a starter/build/test workflow; your application CI stays in your existing files. It does not create a Git branch, commit, push, or PR.
 
-**3. Review, commit, and push the workflow changes, then run CI:**
+**3. Migrate your existing CI jobs,** if you already have workflows:
+
+```sh
+boxci migrate
+```
+
+Select the jobs you want to move onto the pool, review the plan, and approve the local edits. Init creates only the helper; migration connects your existing CI jobs to it. See [migration options](#move-existing-jobs-onto-the-pool) to preview or select specific jobs.
+
+**4. Review, commit, and push the workflow changes, then run CI:**
 
 Run `boxci migrate` to connect your existing jobs. Inspect `git diff -- .github/workflows`; your existing commands, toolchains and triggers remain in those application workflows. Commit and push through your normal process, opening your own PR if needed. Both `init` and `migrate` leave workflow changes local; neither commits, pushes, or opens a PR. Merge the workflow onto the default branch before using the default dispatch below.
 
@@ -116,6 +118,16 @@ Open your application workflow run in GitHub Actions and watch your first job la
 
 </details>
 
+## Why BoxCI
+
+- **Bring your existing CI.** `boxci migrate` retargets the jobs you already have (Blacksmith `runs-on` labels, for example) in one command, as a local diff you review and commit.
+- **Agent-ready.** The bundled [`boxci-migrate` skill](skills/boxci-migrate/SKILL.md) teaches your coding agent to drive `boxci migrate` instead of hand-editing YAML.
+- **Reviewable from start to finish.** A dry run shows exactly what will be created. The real run leaves workflow files locally for your review.
+- **Nothing extra to keep running.** No keepalive, no webhook server, no BoxCI account. The wake step lives inside GitHub Actions.
+- **Close your laptop after setup.** CI wakes the pool on its own. The CLI and dashboard are only for you.
+- **A dashboard that watches without touching.** `boxci dashboard` is local, authenticated and read-only. It never wakes a VM.
+- **Hosted fallback built in.** Fork PRs, or a pool that is not fully ready, run on hosted Ubuntu instead. Fork code never receives your provider key.
+
 ## How it works
 
 ![BoxCI architecture: local setup, hosted wake routing, and passive monitoring](docs/architecture/boxci.svg)
@@ -137,6 +149,7 @@ Go deeper: [architecture and source map](docs/ARCHITECTURE.md) · [interactive d
 
 | Command                       | What it does                                                                       |
 | ----------------------------- | ---------------------------------------------------------------------------------- |
+| `boxci`                       | Show the welcome message and setup steps                                           |
 | `boxci --version`             | Show the installed CLI version                                                     |
 | `boxci init`                  | Set up runners, secret and pool variable; write only the wake helper               |
 | `boxci init --dry-run`        | Preview setup without creating anything                                            |
