@@ -1,6 +1,6 @@
 # Validation
 
-v0.2.0, 23 October 2026. This record covers standalone BoxCI checks that require no live credentials.
+v0.3.1, 25 October 2026. This record covers standalone BoxCI checks that require no live credentials, run against tag `v0.3.1` (commit `a610354`).
 
 ## Automated coverage
 
@@ -12,7 +12,21 @@ The pinned SDK is exercised against a local HTTP fixture. Provider and GitHub op
 
 ## Standalone check results
 
-Run the four documented checks before a release; hosted results are in the repository's **Check** workflow. The local sandbox blocks loopback listeners used by the dashboard, SDK and HTTPS certificate fixtures, so a local run in that environment does not establish a complete Node pass. The hosted suite exercises those listeners.
+Run the four documented checks before a release; hosted results are in the repository's **Check** workflow.
+
+Local run on 25 October 2026 from a clean clone of `v0.3.1` on Linux x64 with Node.js 22.23.4, npm 10.9.9 and Python 3.13.5:
+
+| Check                                      | Result                                                  |
+| ------------------------------------------ | ------------------------------------------------------- |
+| `npm ci`                                   | Passed; 3 packages added, 0 vulnerabilities reported    |
+| `npm test`                                 | 107 tests: 107 passed, 0 failed, 0 skipped, 0 cancelled |
+| `python3 -m unittest discover -s ci/tests` | 27 tests ran, OK                                        |
+| `npm run check`                            | All matched files use Prettier code style               |
+| `npm pack --dry-run`                       | `@balasivagn/boxci` 0.3.1: 51 files, 437.4 kB packed    |
+
+This environment allowed loopback listeners, so the dashboard, SDK and HTTPS certificate fixtures ran locally and passed. Environments that block loopback listeners cannot establish a complete local Node pass; the hosted suite exercises those listeners.
+
+The **Check** workflow runs on every push and pull request. Its `test` job runs `npm ci --ignore-scripts`, `npm run check`, `npm test`, the Python tests and `npm pack --dry-run` on Ubuntu 24.04 with Node.js 22.19.0, 22, 24.5.0 and 24. A `dashboard-macos` job runs the dashboard tests on macOS 14 with Node.js 22. The `wake-helper` jobs call the local reusable wake workflow with an empty pool and assert that it routes to hosted `ubuntu-24.04` without secrets. All seven jobs passed on commit `a610354` in [Check on `main`](https://github.com/balasivagn/boxci/actions/runs/40192884527) and [Check on `v0.3.1`](https://github.com/balasivagn/boxci/actions/runs/40192996346).
 
 The local-workflow regression suite covers cancellation, checkout ownership, local-edit conflicts, symlink refusal, completion-checkpoint recovery, default-branch readiness and migration file rechecks. Tests reject GitHub workflow-content, branch and PR writes, and confirm credential retries reuse the existing VM and runner.
 
