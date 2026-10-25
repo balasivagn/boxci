@@ -11,7 +11,12 @@ const keys = [
   "GIT_CONFIG_COUNT",
   "GIT_CONFIG_PARAMETERS",
 ];
+// Tests may isolate explicitly and again through a fixture; isolate once per
+// test so restoring cannot leave the env pointing at a removed temp file.
+const isolated = new WeakSet();
 export async function isolateGitConfig(t) {
+  if (isolated.has(t)) return;
+  isolated.add(t);
   const dir = await mkdtemp(join(tmpdir(), "boxci-gitconfig-"));
   const global = join(dir, "gitconfig");
   await writeFile(global, "");

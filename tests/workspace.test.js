@@ -28,30 +28,6 @@ async function fixture(t) {
   return { root, git, workspace: new Workspace({ cwd: root }) };
 }
 const path = ".github/workflows/boxci.yml";
-// Credential tests must not see the machine's git config: a global insteadOf
-// for git@github.com: would override the test's local rule. Workspace.root and
-// the fixture inherit process.env, so isolate it for the test's duration.
-async function isolateGitConfig(t) {
-  const dir = await mkdtemp(join(tmpdir(), "boxci-gitconfig-"));
-  const global = join(dir, "gitconfig");
-  await writeFile(global, "");
-  const keys = [
-    "GIT_CONFIG_GLOBAL",
-    "GIT_CONFIG_NOSYSTEM",
-    "GIT_CONFIG_COUNT",
-    "GIT_CONFIG_PARAMETERS",
-  ];
-  const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
-  for (const key of keys) delete process.env[key];
-  process.env.GIT_CONFIG_GLOBAL = global;
-  process.env.GIT_CONFIG_NOSYSTEM = "1";
-  t.after(async () => {
-    for (const key of keys)
-      if (saved[key] === undefined) delete process.env[key];
-      else process.env[key] = saved[key];
-    await rm(dir, { recursive: true, force: true });
-  });
-}
 // Assertion messages may only carry URLs with their userinfo removed.
 const redact = (text) => text.replace(/\/\/[^\s/@]*@/g, "//[REDACTED]@");
 const leaks = (text, secret) => text.includes(secret) || /user:/.test(text);
