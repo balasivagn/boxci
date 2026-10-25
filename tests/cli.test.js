@@ -58,6 +58,7 @@ test("help shows version and application-checkout guidance before any setup", ()
 });
 const globalHelp = () => run("--help").stdout;
 const commandFlags = {
+  version: ["--version", "-v", "--json"],
   init: ["--repo", "--dry-run", "--yes", "--count", "--label", "--secret"],
   status: ["--repo", "--json"],
   doctor: ["--repo", "--json"],
@@ -101,6 +102,35 @@ test("command groups show their only subcommand's help", () => {
       run(group, "--help").stdout,
       run(...sub.split(" "), "-h").stdout,
     );
+});
+test("boxci version --help, -h and boxci help version show the version page, not the version", () => {
+  for (const args of [
+    ["version", "--help"],
+    ["version", "-h"],
+    ["help", "version"],
+    ["version", "--json", "--help"],
+  ]) {
+    const result = run(...args);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    assert.ok(result.stdout.startsWith("Usage: boxci version"), args.join(" "));
+    assert.notEqual(result.stdout.trim(), version);
+  }
+  assert.equal(run("version").stdout.trim(), version);
+});
+test("boxci help with an unknown subcommand of a command group is an unknown command", () => {
+  for (const group of ["pool", "auth", "ci", "dashboard"]) {
+    const result = run("help", group, "bogus");
+    assert.equal(result.status, 1, group);
+    assert.equal(result.stdout, "", group);
+    assert.match(result.stderr, /Unknown command\. Run boxci --help\./);
+    // Without help the command itself is refused too.
+    assert.equal(run(group, "bogus").status, 1, group);
+  }
+  // Like `boxci unknown --help`, a flag request falls back to the global help.
+  const flagged = run("pool", "bogus", "--help");
+  assert.equal(flagged.status, 0);
+  assert.equal(flagged.stdout, globalHelp());
 });
 test("-h and boxci help print the global help; unknown commands are handled", () => {
   const global = globalHelp();

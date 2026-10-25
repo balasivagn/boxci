@@ -104,10 +104,7 @@ try {
     options,
     allowPositionals: true,
   });
-  if (values.version || positionals[0] === "version") {
-    console.log(values.json ? JSON.stringify({ version }) : version);
-    process.exit(0);
-  }
+  // Help comes first so `boxci version --help` shows the version page.
   if (positionals[0] === "help" || values.help) {
     const words =
       positionals[0] === "help" ? positionals.slice(1) : positionals;
@@ -116,6 +113,10 @@ try {
     if (!text && positionals[0] === "help")
       throw new Error("Unknown command. Run boxci --help.");
     console.log(text || help);
+    process.exit(0);
+  }
+  if (values.version || positionals[0] === "version") {
+    console.log(values.json ? JSON.stringify({ version }) : version);
     process.exit(0);
   }
   if (!positionals.length) {

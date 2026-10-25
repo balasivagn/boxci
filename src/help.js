@@ -64,6 +64,11 @@ const ciRun = page(
   ],
 );
 const pages = {
+  version: page(
+    "boxci version [--json]",
+    "Show the installed CLI version; boxci --version and -v do the same.\nNeeds no Git checkout, sign-in or external CLI.",
+    ['  --json                      Print {"version": "..."}'],
+  ),
   init: page(
     "boxci init [options]",
     "Set up runners and write only the shared wake helper. Run it from the\napplication checkout whose GitHub Actions you want to configure.",
@@ -131,13 +136,22 @@ const pages = {
   ci: ciRun,
   "ci run": ciRun,
 };
+// Commands with subcommands; an unknown subcommand has no help page.
+const groups = new Set(
+  Object.keys(pages)
+    .filter((key) => key.includes(" "))
+    .map((key) => key.split(" ")[0]),
+);
 /**
- * Help for the given command words, or null for an unknown command.
+ * Help for the given command words, or null for an unknown command or an
+ * unknown subcommand of a command group.
  * @param {string[]} words
  */
 export function commandHelp(words) {
-  const [command, sub] = words;
-  if (sub !== undefined && pages[`${command} ${sub}`])
-    return pages[`${command} ${sub}`];
-  return Object.hasOwn(pages, command ?? "") ? pages[command] : null;
+  const [command = "", sub] = words;
+  if (!Object.hasOwn(pages, command)) return null;
+  if (sub === undefined) return pages[command];
+  const key = `${command} ${sub}`;
+  if (Object.hasOwn(pages, key)) return pages[key];
+  return groups.has(command) ? null : pages[command];
 }
