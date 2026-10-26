@@ -1,6 +1,6 @@
 # Publishing BoxCI to npm
 
-The [Publish to npm workflow](../.github/workflows/publish.yml) publishes `@balasivagn/boxci` when a maintainer publishes a stable GitHub release in `balasivagn/boxci`. Normal pushes and pull requests do not publish. Manually running this workflow validates the package with `npm publish --dry-run` and never uploads it.
+The [Publish to npm workflow](../.github/workflows/publish.yml) publishes `@balasivagn/boxci` when a push to `main` carries a version npm does not have yet, or when a maintainer publishes a stable GitHub release in `balasivagn/boxci`. Pull requests never publish. Manually running this workflow validates the package with `npm publish --dry-run` and never uploads it.
 
 ## One-time npm connection
 
@@ -22,10 +22,15 @@ Open [Actions → Publish to npm](https://github.com/balasivagn/boxci/actions/wo
 
 ## Publish a reviewed version
 
-1. On the intended release branch, bump the version in both package files with `npm version patch --no-git-tag-version` (or choose `minor`/`major`). Review and commit the version change alongside the release contents.
-2. Push the reviewed commit and wait for **Check** to pass.
-3. Create and publish a GitHub release with a tag exactly matching `v<package.json version>`, targeting that reviewed commit. For example, version `0.1.1` requires `v0.1.1`. Publishing the release is the explicit publish decision; a draft release does not upload a package.
-4. The workflow checks the tag/version match, runs the checks again on that release's source, and publishes publicly to npm's `latest` tag. Prereleases are skipped.
-5. Check the completed workflow, then verify the public package with `npm view @balasivagn/boxci version` and a fresh `npm install -g @balasivagn/boxci`. Run `boxci --help` before testing setup.
+Merging to `main` publishes. The PR review is the release decision.
+
+1. On the release branch, bump the version in both package files with `npm version patch --no-git-tag-version` (or choose `minor`/`major`). Set the date in `CHANGELOG.md`. Review and commit the version change alongside the release contents.
+2. Open a PR and wait for **Check** to pass. Protect `main` so only reviewed PRs with passing checks can merge.
+3. Merge. The workflow runs on the push to `main`. If `package.json` has a version npm does not have yet, it runs the checks again on that commit and publishes publicly to npm's `latest` tag, then creates the `v<version>` GitHub release and tag. If the version is already on npm, it does nothing, so merges without a bump do not publish.
+4. Check the completed workflow, then verify the public package with `npm view @balasivagn/boxci version` and a fresh `npm install -g @balasivagn/boxci`. Run `boxci --help` before testing setup.
+
+Publishing a GitHub release by hand with a tag exactly matching `v<package.json version>` still works as a fallback; the workflow checks the tag/version match and skips prereleases and drafts.
+
+The [Release drift](../.github/workflows/release-drift.yml) workflow warns when `main` has changes to packaged files without a version bump, or a version npm does not have, and fails daily until it is resolved.
 
 npm versions cannot be overwritten. If a publish completed but a later step or client response failed, check the registry before rerunning. If the version already exists, prepare a new version for further changes. A trust mismatch or staged-only publisher permission must be corrected in npm; do not add a token to bypass it.

@@ -17,7 +17,7 @@ export function checkRelease(pkg, { repository, event, tag }) {
     "Only stable versions can be published",
   );
   assert.ok(
-    ["release", "workflow_dispatch"].includes(event),
+    ["release", "push", "workflow_dispatch"].includes(event),
     "Unexpected release event",
   );
   if (event === "release")

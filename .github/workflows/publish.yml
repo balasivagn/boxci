@@ -1,6 +1,8 @@
 name: Publish to npm
 
 on:
+  push:
+    branches: [main]
   release:
     types: [published]
   workflow_dispatch:
@@ -13,10 +15,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # A merge to main publishes only when package.json carries a version npm does not have yet.
+  plan:
+    if: github.repository == 'balasivagn/boxci'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      publish: ${{ steps.plan.outputs.publish }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - id: plan
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_EVENT_NAME" = push ] && npm view "@balasivagn/boxci@${version}" version >/dev/null 2>&1; then
+            echo "@balasivagn/boxci@${version} is already on npm; nothing to publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
   publish:
+    needs: plan
     if: >-
-      github.repository == 'balasivagn/boxci' &&
+      needs.plan.outputs.publish == 'true' &&
       (github.event_name == 'workflow_dispatch' ||
+       github.event_name == 'push' ||
        (github.event.release.prerelease == false && github.event.release.draft == false))
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -48,5 +75,25 @@ jobs:
           npm version prerelease --preid "validation.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}" --no-git-tag-version --ignore-scripts
           npm publish --dry-run --access public --tag validation
       - name: Publish release using npm trusted publishing
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || github.event_name == 'push'
         run: npm publish --access public
+
+  # Releases created by a push are tagged after npm accepts the package. A release made with
+  # GITHUB_TOKEN does not trigger this workflow again.
+  tag:
+    needs: publish
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - run: |
+          version=$(node -p "require('./package.json').version")
+          gh release create "v${version}" --target "$GITHUB_SHA" --title "v${version}" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}

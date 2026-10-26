@@ -2,7 +2,7 @@
 
 Notable changes to `@balasivagn/boxci`. Releases are published from GitHub releases; see [docs/RELEASING.md](docs/RELEASING.md). Dates are in Singapore time (UTC+8).
 
-## 0.4.1 (Unreleased)
+## 0.4.1 (27 Oct 2026)
 
 ### Fixed
 

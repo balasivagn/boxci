@@ -58,3 +58,10 @@ test("manual validation can check an unreleased version without a release tag", 
     "0.1.1",
   );
 });
+
+test("a push to main passes release validation without a tag", () => {
+  assert.equal(
+    checkRelease(pkg, { ...release, event: "push", tag: undefined }),
+    "0.1.1",
+  );
+});
