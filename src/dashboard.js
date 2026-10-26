@@ -87,8 +87,14 @@ export async function serveDashboard(
         "/app.js": ["app.js", "text/javascript"],
         "/style.css": ["style.css", "text/css"],
         "/tokens.css": ["tokens.css", "text/css"],
-        "/fonts/inter.woff2": ["fonts/inter.woff2", "font/woff2"],
-        "/fonts/geist-mono.woff2": ["fonts/geist-mono.woff2", "font/woff2"],
+        "/fonts/schibsted-grotesk.woff2": [
+          "fonts/schibsted-grotesk.woff2",
+          "font/woff2",
+        ],
+        "/fonts/jetbrains-mono.woff2": [
+          "fonts/jetbrains-mono.woff2",
+          "font/woff2",
+        ],
       };
       if (!assets[url.pathname]) return send(404, { error: "Not found." });
       const [file, mime] = assets[url.pathname];

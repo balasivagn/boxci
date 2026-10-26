@@ -1,18 +1,18 @@
-# InstaBox visual alignment
+# Masala Geek visual alignment
 
-Semantic values were inspected from [InstaBox's public stylesheet](https://instabox.sh/assets/a63c38bbfb2fccd1/style.css) on 22 October 2026. `web/tokens.css` holds the mapping. Screen styles consume roles, not individual palette values.
+The dashboard follows the look of [Masala Geek](https://masalageek.com): white page, warm ink, hairline rules instead of boxes, mono uppercase kickers, medium-weight grotesk headings, pill buttons and 4px corners. Values were read from its public stylesheet on 26 October 2026. `web/tokens.css` holds the mapping. Screen styles consume roles, not individual palette values.
 
-| Role                 | Light         | Dark          |
-| -------------------- | ------------- | ------------- |
-| Page                 | `247 247 247` | `18 18 18`    |
-| Foreground / primary | black         | white         |
-| Muted foreground     | `82 82 82`    | `163 163 163` |
-| Border               | black at 8%   | white at 8%   |
-| Code accent          | sky           | `116 174 234` |
-| Corners              | 4 / 6 / 8 px  | 4 / 6 / 8 px  |
+| Role                 | Light            | Dark             |
+| -------------------- | ---------------- | ---------------- |
+| Page                 | white            | `14 14 12`       |
+| Foreground / primary | `14 14 12`       | `245 245 243`    |
+| Muted foreground     | `111 111 107`    | `160 160 154`    |
+| Hairline border      | `232 230 224`    | white at 10%     |
+| Code accent          | ink              | ink (foreground) |
+| Corners              | 4px, pills 999px | 4px, pills 999px |
 
-The public stylesheet's later dark overrides set page and card to `18 18 18` and primary to foreground. The dashboard follows those overrides rather than applying the earlier emerald primary globally.
+Masala Geek ships a light theme only; the warm dark palette is derived from the same ink and keeps the explicit light/dark switch.
 
-Inter and Geist Mono font files were obtained from the same public site's assets, served locally, and accompanied by upstream SIL Open Font Licenses in `web/fonts/`. No provider logo asset is copied. The UI identifies this as CI and as a local dashboard. It is an independent integration, not the provider's account console.
+Schibsted Grotesk and JetBrains Mono (Latin subsets) are served locally, with their SIL Open Font Licenses in `web/fonts/`, so the strict `font-src 'self'` policy holds and the page makes no third-party requests. Masala Geek's logo and content are not copied. The UI identifies this as CI and as a local dashboard.
 
 Controls: visible focus, semantic buttons, accessible live errors, retry after failure, disabled paging at bounds, tables with headers, responsive single-column runner cards, explicit light/dark switch. The dashboard contains live data, not demo fleet metrics.

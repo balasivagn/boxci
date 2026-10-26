@@ -5,7 +5,8 @@ body {
   margin: 0;
   background: rgb(var(--page));
   color: rgb(var(--foreground));
-  font: 14px/1.5 var(--font-sans);
+  font: 16px/1.55 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 button,
 a {
@@ -13,10 +14,10 @@ a {
 }
 button,
 .button {
-  font: 500 12px var(--font-sans);
-  border: 1px solid rgb(var(--border));
-  border-radius: var(--radius-md);
-  padding: 9px 13px;
+  font: 500 13.5px var(--font-sans);
+  border: 1px solid rgb(var(--foreground));
+  border-radius: var(--radius-pill);
+  padding: 9px 16px;
   background: transparent;
   color: rgb(var(--foreground));
   cursor: pointer;
@@ -25,7 +26,8 @@ button,
 }
 button:hover,
 .button:hover {
-  background: rgb(var(--semantic-3));
+  background: rgb(var(--foreground));
+  color: rgb(var(--inverse));
 }
 button:disabled {
   opacity: 0.4;
@@ -39,27 +41,27 @@ a:focus-visible {
 .primary {
   background: rgb(var(--primary));
   color: rgb(var(--inverse));
-  border-color: transparent;
 }
 .primary:hover {
   opacity: 0.85;
   background: rgb(var(--primary));
+  color: rgb(var(--inverse));
 }
 a {
   color: inherit;
 }
 header {
-  height: 76px;
+  height: 68px;
   border-bottom: 1px solid rgb(var(--border));
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 44px;
+  padding: 0 56px;
 }
 .brand {
-  font-weight: 600;
-  font-size: 22px;
-  letter-spacing: -1px;
+  font-weight: 500;
+  font-size: 20px;
+  letter-spacing: -0.2px;
   text-decoration: none;
   display: flex;
   gap: 8px;
@@ -67,38 +69,31 @@ header {
 }
 .mark {
   font-family: var(--font-mono);
-  font-size: 30px;
-  margin-right: 3px;
-}
-.brand-sub {
-  font-size: 10px;
-  letter-spacing: 0.7px;
-  font-weight: 500;
-  border: 1px solid rgb(var(--border));
-  padding: 2px 5px;
-  border-radius: 4px;
-  margin-left: 1px;
+  font-size: 18px;
+  font-weight: 400;
 }
 .header-right {
   display: flex;
   gap: 10px;
   align-items: center;
   color: rgb(var(--muted-foreground));
-  font-size: 11px;
+  font: 11.5px var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 .header-right button {
   margin-left: 12px;
 }
 .local-dot {
-  width: 6px;
-  height: 6px;
-  background: rgb(var(--success));
+  width: 8px;
+  height: 8px;
+  background: rgb(var(--foreground));
   border-radius: 50%;
 }
 main {
-  max-width: 1260px;
+  max-width: 1292px;
   margin: auto;
-  padding: 48px 44px 24px;
+  padding: 56px 56px 24px;
 }
 .page-heading {
   display: flex;
@@ -107,30 +102,33 @@ main {
   gap: 24px;
 }
 .eyebrow {
-  font: 10px var(--font-mono);
-  letter-spacing: 1.6px;
+  font: 11.5px var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   color: rgb(var(--muted-foreground));
   margin-bottom: 16px;
 }
 h1 {
-  font-size: 32px;
+  font-size: clamp(34px, 5vw, 58px);
   font-weight: 500;
-  letter-spacing: -1.25px;
-  line-height: 1.2;
-  margin: 0 0 12px;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  max-width: 22ch;
+  margin: 0 0 16px;
 }
 .lede,
 .section-heading p,
 .maintain p {
   color: rgb(var(--muted-foreground));
-  font-size: 12px;
+  font-size: 15px;
   margin: 0;
 }
 h2 {
   font-weight: 500;
-  letter-spacing: -0.25px;
-  font-size: 16px;
-  margin: 0 0 5px;
+  letter-spacing: -0.015em;
+  font-size: 28px;
+  line-height: 1.12;
+  margin: 0 0 6px;
 }
 .context {
   display: flex;
@@ -138,7 +136,7 @@ h2 {
   align-items: center;
   flex-wrap: wrap;
   margin: 34px 0 18px;
-  font-size: 11px;
+  font-size: 13px;
 }
 .context strong {
   font-weight: 500;
@@ -149,14 +147,13 @@ h2 {
 .context span:last-child {
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  border: 1px solid rgb(var(--border));
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+  border-top: 1px solid rgb(var(--border));
+  border-bottom: 1px solid rgb(var(--border));
 }
 .stats article {
   padding: 20px 24px;
@@ -169,17 +166,19 @@ h2 {
   border-right: 0;
 }
 .stats span {
-  font-size: 11px;
+  font: 11.5px var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   color: rgb(var(--muted-foreground));
 }
 .stats strong {
-  font-size: 32px;
+  font-size: 44px;
   font-weight: 500;
-  letter-spacing: -1px;
-  line-height: 1.2;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 .stats small {
-  font-size: 10px;
+  font-size: 12px;
   color: rgb(var(--muted-foreground));
 }
 .notice {
@@ -194,11 +193,11 @@ h2 {
   margin-top: 20px;
 }
 .notice strong {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
 }
 .notice p {
-  font-size: 11px;
+  font-size: 13px;
   color: rgb(var(--muted-foreground));
   margin: 4px 0 0;
 }
@@ -210,10 +209,11 @@ h2 {
   margin: 32px 0 14px;
 }
 .section-heading code {
-  font: 10px var(--font-mono);
-  border: 1px solid rgb(var(--border));
-  padding: 4px 7px;
-  border-radius: var(--radius-sm);
+  font: 11.5px var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid rgb(var(--border));
+  padding-bottom: 4px;
   color: rgb(var(--muted-foreground));
 }
 .members {
@@ -234,17 +234,19 @@ h2 {
   gap: 8px;
 }
 .member h3 {
-  font-size: 13px;
-  letter-spacing: -0.25px;
+  font-size: 16px;
+  letter-spacing: -0.01em;
   font-weight: 500;
   margin: 0;
   overflow-wrap: anywhere;
 }
 .badge {
-  font: 9px var(--font-mono);
-  padding: 3px 6px;
+  font: 11px var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
   border: 1px solid rgb(var(--border));
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   display: inline-block;
   white-space: nowrap;
 }
@@ -269,7 +271,7 @@ h2 {
   background: rgb(var(--destructive) / 0.06);
 }
 .member .spec {
-  font: 10px var(--font-mono);
+  font: 11.5px var(--font-mono);
   color: rgb(var(--muted-foreground));
   margin: 12px 0 20px;
 }
@@ -279,14 +281,14 @@ h2 {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font-size: 11px;
+  font-size: 13px;
   margin-top: 10px;
 }
 .detail > span:first-child {
   color: rgb(var(--muted-foreground));
 }
 .job-line {
-  font-size: 11px;
+  font-size: 13px;
   color: rgb(var(--muted-foreground));
   margin: 14px 0 0;
   white-space: nowrap;
@@ -299,8 +301,8 @@ h2 {
 .table-scroll {
   max-height: 420px;
   overflow: auto;
-  border: 1px solid rgb(var(--border));
-  border-radius: var(--radius-lg);
+  border-top: 1px solid rgb(var(--border));
+  border-bottom: 1px solid rgb(var(--border));
 }
 table {
   border-collapse: collapse;
@@ -314,19 +316,20 @@ thead {
   z-index: 1;
 }
 th {
-  font-weight: 400;
-  font-size: 10px;
+  font: 11.5px var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   color: rgb(var(--muted-foreground));
   padding: 11px 18px;
 }
 td {
-  font-size: 11px;
+  font-size: 14px;
   padding: 14px 18px;
   border-top: 1px solid rgb(var(--border));
   vertical-align: middle;
 }
 td:nth-child(3) {
-  font: 10px var(--font-mono);
+  font: 11.5px var(--font-mono);
   color: rgb(var(--muted-foreground));
 }
 td:last-child {
@@ -340,7 +343,7 @@ td a:hover {
   color: rgb(var(--foreground));
 }
 .muted {
-  font-size: 10px;
+  font: 11.5px var(--font-mono);
   color: rgb(var(--muted-foreground));
 }
 .pagination {
@@ -349,10 +352,10 @@ td a:hover {
   justify-content: space-between;
   padding: 12px 0;
   color: rgb(var(--muted-foreground));
-  font-size: 10px;
+  font: 11.5px var(--font-mono);
 }
 .pagination button {
-  font-size: 10px;
+  font-size: 12px;
   padding: 6px 10px;
   margin-left: 5px;
 }
@@ -366,7 +369,7 @@ td a:hover {
   padding-top: 26px;
 }
 .maintain h2 {
-  font-size: 14px;
+  font-size: 22px;
 }
 .commands {
   display: flex;
@@ -379,9 +382,9 @@ code {
 .commands code {
   background: rgb(var(--semantic-2));
   border: 1px solid rgb(var(--border));
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
-  font-size: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
   color: rgb(var(--code-accent));
 }
 footer {
@@ -391,7 +394,7 @@ footer {
   border-top: 1px solid rgb(var(--border));
   margin-top: 32px;
   padding-top: 16px;
-  font-size: 9px;
+  font: 11px var(--font-mono);
   color: rgb(var(--muted-foreground));
 }
 #error {
@@ -404,7 +407,7 @@ footer {
   justify-content: space-between;
   align-items: center;
   gap: 20px;
-  font-size: 12px;
+  font-size: 14px;
 }
 .skeleton {
   height: 90px;
@@ -414,7 +417,7 @@ footer {
 }
 #loading p {
   color: rgb(var(--muted-foreground));
-  font-size: 12px;
+  font-size: 14px;
 }
 [hidden] {
   display: none !important;
@@ -445,9 +448,6 @@ footer {
   }
   .context span:last-child {
     margin-left: 0;
-  }
-  h1 {
-    font-size: 26px;
   }
 }
 @media (prefers-reduced-motion: no-preference) {
