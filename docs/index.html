@@ -458,6 +458,28 @@
         border-bottom: 1px solid var(--accent);
         padding-bottom: 3px;
       }
+      /* Header: "BoxCI | Masala Geek" lockup on the left, social links on the right. */
+      .brand-lockup {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+      .brand-sep,
+      .brand-parent {
+        font-size: 14.5px;
+        color: var(--mute);
+      }
+      .brand-parent:hover {
+        color: var(--ink);
+      }
+      .site-nav a {
+        font-size: 14.5px;
+        color: var(--ink);
+      }
+      .site-nav a:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
       /* In-text links: --mute underline (5.05:1) instead of --hair; hover → accent. */
       main a:not(.btn),
       .site-footer a {
@@ -630,20 +652,25 @@
   <body>
     <header class="site-header">
       <div class="site-header-inner">
-        <a class="brand" href="https://masalageek.com">Masala Geek</a>
-        <span class="site-nav"
-          ><span class="site-nav-current">boxci</span></span
-        >
+        <span class="brand-lockup">
+          <a class="brand" href="/">BoxCI</a>
+          <span class="brand-sep" aria-hidden="true">|</span>
+          <a class="brand-parent" href="https://masalageek.com">Masala Geek</a>
+        </span>
+        <nav class="site-nav" aria-label="Social links">
+          <a href="https://x.com/balaSivagnanam">X</a>
+          <a href="https://github.com/balasivagn">GitHub</a>
+          <a href="https://www.linkedin.com/in/balasivgn">LinkedIn</a>
+        </nav>
       </div>
     </header>
 
     <main>
       <header class="hero">
-        <h1 class="hero-headline">BoxCI</h1>
-        <p class="hero-dek">
-          GitHub Actions runners on your own InstaBox VMs. They wake up for CI
-          and pause again when idle.
-        </p>
+        <h1 class="hero-headline">
+          GitHub Actions runners on your own InstaBox VMs.
+        </h1>
+        <p class="hero-dek">They wake up for CI and pause again when idle.</p>
         <pre tabindex="0"><code>npm install -g @balasivagn/boxci</code></pre>
         <ul class="hero-ctas">
           <li>
@@ -679,6 +706,11 @@
         <div class="sec-head">
           <h2 class="sec-head-title" id="what">What it is</h2>
         </div>
+        <p>
+          Set up CI on InstaBox, migrate your existing CI, then run and monitor
+          it, all in a couple of minutes with one CLI. Or simply point your
+          coding agent at it.
+        </p>
         <p>
           BoxCI turns InstaBox VMs into dedicated GitHub Actions runners for
           your repository. One command plans the setup, a local workflow diff
@@ -737,6 +769,11 @@ boxci migrate</code></pre>
         <p>
           Then review, commit, and push the workflow changes through your usual
           process. BoxCI creates no branch or PR.
+        </p>
+        <p>
+          Watch the pool any time with <code>boxci dashboard</code>: a local,
+          read-only view of your VMs, runners and recent jobs that never wakes a
+          VM.
         </p>
       </section>
 
@@ -1007,6 +1044,31 @@ boxci migrate</code></pre>
             <a href="https://github.com/balasivagn/boxci/blob/main/SECURITY.md"
               >Security</a
             >: credential scope and isolation limits
+          </li>
+        </ul>
+      </section>
+
+      <section class="site-section" aria-labelledby="collab">
+        <div class="sec-head">
+          <h2 class="sec-head-title" id="collab">Ideas and collaboration</h2>
+        </div>
+        <p>
+          BoxCI is young and shaped by people using it. Got an idea, a feature
+          request, a rough edge, or want to build on it together? I'd like to
+          hear it.
+        </p>
+        <ul class="now-list">
+          <li>
+            <a href="https://github.com/balasivagn/boxci/issues/new"
+              >Open an issue</a
+            >
+            for feature requests and bugs.
+          </li>
+          <li>
+            Message me on
+            <a href="https://x.com/balaSivagnanam">X</a> or
+            <a href="https://www.linkedin.com/in/balasivgn">LinkedIn</a> to talk
+            ideas or collaboration.
           </li>
         </ul>
       </section>
