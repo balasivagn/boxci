@@ -149,6 +149,33 @@
         padding-right: 56px;
       }
 
+      /* Nav (lines 69–92; header markup as in site/src/layouts/BaseLayout.astro) */
+      .site-header {
+        border-bottom: 1px solid var(--hair);
+      }
+
+      .site-header-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 32px;
+        padding-top: 22px;
+        padding-bottom: 22px;
+      }
+
+      .brand {
+        font-family: var(--font-display);
+        font-weight: 500;
+        font-size: 20px;
+        color: var(--ink);
+        text-decoration: none;
+      }
+
+      .site-nav {
+        display: flex;
+        gap: 28px;
+      }
+
       /* Buttons (lines 162–185) */
       .btn {
         display: inline-flex;
@@ -424,6 +451,13 @@
       }
 
       /* ─── BoxCI additions (per STYLE-BRIEF.md §2, §6) ─── */
+      /* Header "boxci": .site-nav link size, styled like [G]'s current-page item (lines 100–104). */
+      .site-nav-current {
+        font-size: 14.5px;
+        color: var(--ink);
+        border-bottom: 1px solid var(--accent);
+        padding-bottom: 3px;
+      }
       /* In-text links: --mute underline (5.05:1) instead of --hair; hover → accent. */
       main a:not(.btn),
       .site-footer a {
@@ -439,7 +473,8 @@
         border-bottom-color: var(--accent);
       }
       /* Visible focus ring in --ink (19.32:1); focus outlines are never removed. */
-      a:focus-visible {
+      a:focus-visible,
+      pre[tabindex]:focus-visible {
         outline: 2px solid var(--ink);
         outline-offset: 2px;
       }
@@ -451,7 +486,7 @@
       .note-list,
       .now-list,
       .figure {
-        max-width: 760px;
+        max-width: 680px;
       }
       .site-section > p {
         font-size: 18px;
@@ -486,9 +521,6 @@
         font-size: 11.5px;
         color: var(--mute);
         padding-top: 6px;
-      }
-      .note-list .note-item strong {
-        font-weight: 500;
       }
       .figure + .note-list {
         margin-top: 32px;
@@ -596,6 +628,15 @@
     </style>
   </head>
   <body>
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a class="brand" href="https://masalageek.com">Masala Geek</a>
+        <span class="site-nav"
+          ><span class="site-nav-current">boxci</span></span
+        >
+      </div>
+    </header>
+
     <main>
       <header class="hero">
         <h1 class="hero-headline">BoxCI</h1>
@@ -603,7 +644,7 @@
           GitHub Actions runners on your own InstaBox VMs. They wake up for CI
           and pause again when idle.
         </p>
-        <pre><code>npm install -g @balasivagn/boxci</code></pre>
+        <pre tabindex="0"><code>npm install -g @balasivagn/boxci</code></pre>
         <ul class="hero-ctas">
           <li>
             <a class="btn" href="https://github.com/balasivagn/boxci"
