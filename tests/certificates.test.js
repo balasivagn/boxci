@@ -30,7 +30,7 @@ test("an empty system store preserves existing trust and unsupported Node fails 
   assert.deepEqual(roots, ["existing-root"]);
   assert.throws(
     () => configureCertificateTrust({}),
-    /Node.js 22.19\+ or 24.5\+/,
+    /Node.js 22.23.4\+ or 24.22.1\+/,
   );
 });
 
