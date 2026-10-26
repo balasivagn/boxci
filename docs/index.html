@@ -8,468 +8,978 @@
       name="description"
       content="BoxCI turns InstaBox VMs into dedicated GitHub Actions runners for your repository. They wake up for CI and pause again when idle."
     />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="light" />
     <link rel="canonical" href="https://boxci.masalageek.com/" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <style>
-      :root {
-        color-scheme: light dark;
-        --page: rgb(247 247 247);
-        --card: rgb(255 255 255);
-        --fg: rgb(0 0 0);
-        --muted: rgb(82 82 82);
-        --border: rgb(0 0 0 / 0.08);
-        --accent: rgb(2 132 199);
-        --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      /* Self-hosted fonts (docs/fonts/, SIL OFL 1.1). Variable files from google/fonts. */
+      @font-face {
+        font-family: "Schibsted Grotesk";
+        src: url("fonts/schibsted-grotesk.woff2") format("woff2");
+        font-style: normal;
+        font-weight: 400 900;
+        font-display: swap;
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --page: rgb(18 18 18);
-          --card: rgb(28 28 28);
-          --fg: rgb(255 255 255);
-          --muted: rgb(163 163 163);
-          --border: rgb(255 255 255 / 0.08);
-          --accent: rgb(116 174 234);
-        }
+      @font-face {
+        font-family: "JetBrains Mono";
+        src: url("fonts/jetbrains-mono.woff2") format("woff2");
+        font-style: normal;
+        font-weight: 100 800;
+        font-display: swap;
       }
-      * {
+
+      /* ─── Inlined reset (subset of Tailwind preflight; must precede the copied rules) ─── */
+      *,
+      ::before,
+      ::after {
         box-sizing: border-box;
-      }
-      body {
         margin: 0;
-        background: var(--page);
-        color: var(--fg);
-        font: 16px/1.6 var(--sans);
-      }
-      main,
-      header,
-      footer {
-        max-width: 760px;
-        margin: 0 auto;
-        padding: 0 20px;
-      }
-      header {
-        padding-top: 64px;
-        padding-bottom: 8px;
-      }
-      h1 {
-        font-size: 2.5rem;
-        line-height: 1.1;
-        margin: 0 0 12px;
-        letter-spacing: -0.02em;
-      }
-      h2 {
-        font-size: 1.25rem;
-        margin: 48px 0 12px;
-      }
-      p,
-      li {
-        color: var(--fg);
-      }
-      .lede {
-        font-size: 1.2rem;
-        color: var(--muted);
-        margin: 0 0 24px;
-      }
-      .muted {
-        color: var(--muted);
-      }
-      a {
-        color: var(--accent);
-      }
-      a:focus-visible {
-        outline: 2px solid var(--accent);
-        outline-offset: 2px;
-      }
-      code {
-        font-family: var(--mono);
-        font-size: 0.9em;
-      }
-      pre {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 14px 16px;
-        overflow-x: auto;
-        margin: 12px 0;
-      }
-      pre code {
-        font-size: 0.95rem;
-      }
-      .links {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin: 20px 0 0;
         padding: 0;
+        border: 0 solid;
+      }
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6 {
+        font-size: inherit;
+        font-weight: inherit;
+      }
+      ol,
+      ul {
         list-style: none;
       }
-      .links a {
-        display: inline-block;
-        padding: 6px 12px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: var(--card);
-        color: var(--fg);
-        text-decoration: none;
-      }
-      .links a:hover {
-        border-color: var(--accent);
-      }
-      ol.steps,
-      ul.plain {
-        padding-left: 1.25rem;
-      }
-      ol.steps li,
-      ul.plain li {
-        margin: 8px 0;
+      img,
+      svg {
+        display: block;
+        max-width: 100%;
+        height: auto;
       }
       table {
+        border-collapse: collapse;
+      }
+      b,
+      strong {
+        font-weight: bolder;
+      }
+      a {
+        color: inherit;
+        text-decoration: inherit;
+      }
+
+      /* ─── Copied from balasivagn/TheBalaOS site/src/styles/global.css ─── */
+      /* Design tokens · Paper palette · Grotesk pairing (lines 4–24) */
+      :root {
+        --bg: #ffffff;
+        --bg-2: #f5f5f3;
+        --ink: #0e0e0c;
+        --mute: #6f6f6b;
+        --hair: #e8e6e0;
+        --accent: #0e0e0c;
+
+        --font-display:
+          "Schibsted Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-body:
+          "Schibsted Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono:
+          "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 24px;
+        --space-6: 32px;
+        --space-7: 48px;
+        --space-8: 64px;
+      }
+
+      /* Reset (lines 27–46) */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        height: 100%;
+      }
+
+      body {
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-body);
+        font-size: 16px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      /* Layout (lines 49–66) */
+      main {
+        flex: 1;
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-left: 56px;
+        padding-right: 56px;
+        padding-bottom: 80px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .site-header-inner,
+      .site-footer-inner {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-left: 56px;
+        padding-right: 56px;
+      }
+
+      /* Buttons (lines 162–185) */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--font-body);
+        font-size: 14.5px;
+        font-weight: 500;
+        padding: 11px 18px;
+        border-radius: 999px;
+        white-space: nowrap;
+        border: 1px solid var(--ink);
+        background: var(--ink);
+        color: var(--bg);
+        transition: transform 0.15s ease;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+        color: var(--bg);
+      }
+      .btn-ghost {
+        background: transparent;
+        color: var(--ink);
+        border-color: var(--ink);
+      }
+      .btn-ghost:hover {
+        background: var(--ink);
+        color: var(--bg);
+      }
+
+      /* Hero · Editorial (lines 197–230) */
+      .hero {
+        padding: 56px 0 64px;
+        border-bottom: 1px solid var(--hair);
+      }
+
+      .hero-headline {
+        font-family: var(--font-display);
+        font-weight: 500;
+        font-size: clamp(40px, 5.5vw, 76px);
+        line-height: 1.05;
+        letter-spacing: -0.02em;
+        margin: 0 0 24px;
+        max-width: 18ch;
+      }
+
+      .hero-dek {
+        font-size: 16px;
+        color: var(--ink);
+        line-height: 1.55;
+        max-width: 50ch;
+        margin: 0 0 24px;
+      }
+
+      .hero-ctas {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      /* Section head (lines 257–273) */
+      .sec-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        padding-bottom: 16px;
+      }
+
+      .sec-head-title {
+        font-family: var(--font-display);
+        font-weight: 500;
+        font-size: 28px;
+        line-height: 1.12;
+        letter-spacing: -0.015em;
+        margin: 6px 0 0;
+        max-width: 22ch;
+      }
+
+      /* Note item (lines 318–336) */
+      .note-item {
+        display: grid;
+        grid-template-columns: 48px 1fr 24px;
+        gap: 24px;
+        padding: 22px 0;
+        border-top: 1px solid var(--hair);
+        align-items: start;
+      }
+
+      .note-item:last-child {
+        border-bottom: 1px solid var(--hair);
+      }
+
+      .note-idx {
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        color: var(--mute);
+        padding-top: 6px;
+      }
+
+      .note-body {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      /* Project card + grid (lines 395–450) */
+      .project-card {
+        background: var(--bg);
+        padding: 24px 26px 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        text-decoration: none;
+        color: var(--ink);
+      }
+
+      .project-name {
+        font-family: var(--font-display);
+        font-weight: 500;
+        font-size: 24px;
+        line-height: 1.1;
+        letter-spacing: -0.01em;
+        margin: 0;
+        transition: color 0.12s;
+      }
+
+      .project-card:hover .project-name {
+        color: var(--accent);
+      }
+
+      .project-blurb {
+        margin: 0;
+        font-size: 14.5px;
+        color: var(--mute);
+        line-height: 1.5;
+      }
+
+      .projects-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        border-top: 1px solid var(--hair);
+        border-left: 1px solid var(--hair);
+      }
+      .projects-grid .project-card {
+        border-right: 1px solid var(--hair);
+        border-bottom: 1px solid var(--hair);
+      }
+      /* Remove right border for even cards (last column) */
+      .projects-grid .project-card:nth-child(2n) {
+        border-right: 0;
+      }
+      /* Remove bottom border for last row */
+      .projects-grid .project-card:last-child {
+        border-bottom: 0;
+      }
+      .projects-grid .project-card:nth-last-child(2):nth-child(2n + 1) {
+        border-bottom: 0;
+      }
+
+      /* Code block (lines 498–518) */
+      pre {
+        background: var(--bg-2);
+        border: 1px solid var(--hair);
+        padding: 16px 20px;
+        font-family: var(--font-mono);
+        font-size: 13px;
+        line-height: 1.6;
+        overflow-x: auto;
+        white-space: pre;
+        color: var(--ink);
+      }
+
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.88em;
+        background: var(--bg-2);
+        border: 1px solid var(--hair);
+        padding: 2px 6px;
+      }
+
+      pre code {
+        border: 0;
+        background: none;
+        padding: 0;
+        font-size: inherit;
+      }
+
+      /* Figure (lines 521–534) */
+      .figure {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .diagram-frame {
+        border: 1px solid var(--hair);
+        padding: 14px 16px 12px;
+        background: var(--bg);
+        color: var(--ink);
+      }
+
+      /* Footer (lines 587–600) */
+      .site-footer {
+        border-top: 1px solid var(--hair);
+      }
+
+      .site-footer-inner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 20px;
+        padding-bottom: 40px;
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        gap: 24px;
+        flex-wrap: wrap;
+        color: var(--mute);
+      }
+
+      /* Site sections (line 608) */
+      .site-section {
+        padding: 56px 0;
+      }
+
+      /* Links table (lines 773–794) */
+      .links-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.95rem;
       }
-      th,
-      td {
+
+      .links-table th {
         text-align: left;
-        padding: 8px 10px;
-        border-bottom: 1px solid var(--border);
+        padding: 10px 0;
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        font-weight: 400;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--mute);
+        border-bottom: 1px solid var(--hair);
+      }
+
+      .links-table td {
+        padding: 16px 0;
+        border-bottom: 1px solid var(--hair);
         vertical-align: top;
+        font-size: 14.5px;
       }
-      th {
-        color: var(--muted);
-        font-weight: 600;
+
+      .links-table td:first-child {
+        padding-right: 24px;
       }
-      td code {
-        white-space: nowrap;
+
+      /* Now list (lines 822–832) */
+      .now-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
       }
+
+      .now-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 0;
+        border-bottom: 1px dashed var(--hair);
+        font-size: 16px;
+        line-height: 1.55;
+      }
+
+      /* ─── BoxCI additions (per STYLE-BRIEF.md §2, §6) ─── */
+      /* In-text links: --mute underline (5.05:1) instead of --hair; hover → accent. */
+      main a:not(.btn),
+      .site-footer a {
+        border-bottom: 1px solid var(--mute);
+        padding-bottom: 1px;
+        transition:
+          color 0.15s,
+          border-color 0.15s;
+      }
+      main a:not(.btn):hover,
+      .site-footer a:hover {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+      /* Visible focus ring in --ink (19.32:1); focus outlines are never removed. */
+      a:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+
+      .site-section + .site-section {
+        border-top: 1px solid var(--hair);
+      }
+      .site-section > p,
+      .note-list,
+      .now-list,
+      .figure {
+        max-width: 760px;
+      }
+      .site-section > p {
+        font-size: 18px;
+        line-height: 1.65;
+      }
+      .site-section > p + p,
+      .site-section > * + pre,
+      .site-section > pre + p {
+        margin-top: 20px;
+      }
+      .site-section > .table-wrap + p {
+        margin-top: 16px;
+        color: var(--mute);
+        font-size: 14.5px;
+      }
+      .hero pre {
+        width: fit-content;
+        max-width: 100%;
+        margin: 0 0 24px;
+      }
+
+      .note-list {
+        counter-reset: step;
+      }
+      .note-list .note-item {
+        grid-template-columns: 48px 1fr;
+        counter-increment: step;
+      }
+      .note-list .note-item::before {
+        content: counter(step, decimal-leading-zero);
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        color: var(--mute);
+        padding-top: 6px;
+      }
+      .note-list .note-item strong {
+        font-weight: 500;
+      }
+      .figure + .note-list {
+        margin-top: 32px;
+      }
+
+      .project-name {
+        display: block;
+      }
+      .project-blurb {
+        display: block;
+      }
+
+      /* now-list rows hold inline text, links and code: block, not flex. */
+      .now-list li {
+        display: block;
+      }
+      /* Show commands literally (JetBrains Mono would draw >= as one glyph). */
+      code,
+      pre {
+        font-variant-ligatures: none;
+      }
+
       .table-wrap {
         overflow-x: auto;
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 8px;
       }
-      figure {
-        margin: 16px 0;
+      .links-table code {
+        white-space: nowrap;
       }
-      figure img {
-        width: 100%;
-        height: auto;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        background: #fff;
+      .links-table td:last-child {
+        color: var(--ink);
       }
-      figcaption {
-        font-size: 0.875rem;
-        color: var(--muted);
-        margin-top: 6px;
-      }
-      footer {
-        padding-top: 32px;
-        padding-bottom: 48px;
-        margin-top: 48px;
-        border-top: 1px solid var(--border);
-        font-size: 0.9rem;
-        color: var(--muted);
+
+      /* ─── Responsive: copied from global.css lines 919–947 (in-scope rules per STYLE-BRIEF.md §2a.5) ─── */
+      @media (max-width: 720px) {
+        main,
+        .site-header-inner,
+        .site-footer-inner {
+          padding-left: 22px;
+          padding-right: 22px;
+        }
+
+        .hero-layout {
+          grid-template-columns: 1fr;
+        }
+        .hero-headline {
+          font-size: clamp(36px, 8vw, 56px);
+        }
+
+        .projects-grid {
+          grid-template-columns: 1fr;
+        }
+        .projects-grid .project-card {
+          border-right: 0;
+        }
+
+        .note-item {
+          grid-template-columns: 40px 1fr 20px;
+          gap: 12px;
+        }
+        .note-title {
+          font-size: 20px;
+        }
+
+        .site-nav {
+          gap: 16px;
+        }
+        .site-section {
+          padding: 40px 0;
+        }
+        .page-head {
+          padding: 32px 0 36px;
+        }
+        .hero {
+          padding: 40px 0 48px;
+        }
+
+        .prose {
+          padding: 40px 0 64px;
+        }
+
+        /* BoxCI: two-column step rows; the commands table keeps both columns. */
+        .note-list .note-item {
+          grid-template-columns: 40px 1fr;
+        }
+        .site-section > p {
+          font-size: 16px;
+          line-height: 1.6;
+        }
+        /* Commands table stacks: command above description, nothing hidden. */
+        .links-table tr {
+          display: block;
+          padding: 12px 0;
+          border-bottom: 1px solid var(--hair);
+        }
+        .links-table th,
+        .links-table td {
+          display: block;
+          padding: 2px 0;
+          border-bottom: 0;
+        }
+        .links-table td:first-child {
+          padding: 2px 0 6px;
+        }
       }
     </style>
   </head>
   <body>
-    <header>
-      <h1>BoxCI</h1>
-      <p class="lede">
-        GitHub Actions runners on your own InstaBox VMs. They wake up for CI and
-        pause again when idle.
-      </p>
-      <pre><code>npm install -g @balasivagn/boxci</code></pre>
-      <ul class="links">
-        <li>
-          <a href="https://github.com/balasivagn/boxci">GitHub repository</a>
-        </li>
-        <li>
-          <a href="https://www.npmjs.com/package/@balasivagn/boxci"
-            >npm package</a
-          >
-        </li>
-        <li><a href="https://github.com/balasivagn/boxci#readme">README</a></li>
-        <li>
-          <a href="https://github.com/balasivagn/boxci/blob/main/LICENSE"
-            >Apache-2.0 license</a
-          >
-        </li>
-      </ul>
-    </header>
-
     <main>
-      <h2 id="what">What it is</h2>
-      <p>
-        BoxCI turns InstaBox VMs into dedicated GitHub Actions runners for your
-        repository. One command plans the setup, a local workflow diff wires up
-        CI, and your jobs run on machines you control.
-      </p>
-      <p>
-        Already have CI? <code>boxci migrate</code> moves your existing jobs
-        onto the pool, Blacksmith or <code>ubuntu-latest</code> alike, as a
-        local diff you review. It ships with an agent skill, so your coding
-        agent can do the migration with you.
-      </p>
-      <p>
-        Pick jobs that run on <strong>Linux x64</strong> and whose steps work on
-        both the InstaBox VM and the hosted Ubuntu fallback.
-      </p>
+      <header class="hero">
+        <h1 class="hero-headline">BoxCI</h1>
+        <p class="hero-dek">
+          GitHub Actions runners on your own InstaBox VMs. They wake up for CI
+          and pause again when idle.
+        </p>
+        <pre><code>npm install -g @balasivagn/boxci</code></pre>
+        <ul class="hero-ctas">
+          <li>
+            <a class="btn" href="https://github.com/balasivagn/boxci"
+              >GitHub repository</a
+            >
+          </li>
+          <li>
+            <a
+              class="btn btn-ghost"
+              href="https://www.npmjs.com/package/@balasivagn/boxci"
+              >npm package</a
+            >
+          </li>
+          <li>
+            <a
+              class="btn btn-ghost"
+              href="https://github.com/balasivagn/boxci#readme"
+              >README</a
+            >
+          </li>
+          <li>
+            <a
+              class="btn btn-ghost"
+              href="https://github.com/balasivagn/boxci/blob/main/LICENSE"
+              >Apache-2.0 license</a
+            >
+          </li>
+        </ul>
+      </header>
 
-      <h2 id="start">Get started</h2>
-      <ol class="steps">
-        <li>
-          <strong>Install</strong> the CLI with
-          <code>npm install -g @balasivagn/boxci</code>, then run
-          <code>boxci --help</code> to list commands.
-        </li>
-        <li>
-          <strong>Initialize</strong> from your app's checkout with
-          <code>boxci init</code>. It reuses your GitHub and InstaBox sign-ins,
-          shows the plan for your approval, then sets up the runner. Workflow
-          changes stay local.
-        </li>
-        <li>
-          <strong>Migrate existing CI</strong> with <code>boxci migrate</code>.
-          Select the workflow jobs to move onto the pool, then review and
-          approve the local diff.
-        </li>
-      </ol>
-      <pre><code>cd /path/to/your-app
+      <section class="site-section" aria-labelledby="what">
+        <div class="sec-head">
+          <h2 class="sec-head-title" id="what">What it is</h2>
+        </div>
+        <p>
+          BoxCI turns InstaBox VMs into dedicated GitHub Actions runners for
+          your repository. One command plans the setup, a local workflow diff
+          wires up CI, and your jobs run on machines you control.
+        </p>
+        <p>
+          Already have CI? <code>boxci migrate</code> moves your existing jobs
+          onto the pool, Blacksmith or <code>ubuntu-latest</code> alike, as a
+          local diff you review. It ships with an agent skill, so your coding
+          agent can do the migration with you.
+        </p>
+        <p>
+          Pick jobs that run on <strong>Linux x64</strong> and whose steps work
+          on both the InstaBox VM and the hosted Ubuntu fallback.
+        </p>
+      </section>
+
+      <section class="site-section" aria-labelledby="start">
+        <div class="sec-head">
+          <h2 class="sec-head-title" id="start">Get started</h2>
+        </div>
+        <ol class="note-list">
+          <li class="note-item">
+            <span class="note-body"
+              ><span
+                ><strong>Install</strong> the CLI with
+                <code>npm install -g @balasivagn/boxci</code>, then run
+                <code>boxci --help</code> to list commands.</span
+              ></span
+            >
+          </li>
+          <li class="note-item">
+            <span class="note-body"
+              ><span
+                ><strong>Initialize</strong> from your app's checkout with
+                <code>boxci init</code>. It reuses your GitHub and InstaBox
+                sign-ins, shows the plan for your approval, then sets up the
+                runner. Workflow changes stay local.</span
+              ></span
+            >
+          </li>
+          <li class="note-item">
+            <span class="note-body"
+              ><span
+                ><strong>Migrate existing CI</strong> with
+                <code>boxci migrate</code>. Select the workflow jobs to move
+                onto the pool, then review and approve the local diff.</span
+              ></span
+            >
+          </li>
+        </ol>
+        <pre><code>cd /path/to/your-app
 boxci init --dry-run
 boxci init
 boxci migrate</code></pre>
-      <p>
-        Then review, commit, and push the workflow changes through your usual
-        process. BoxCI creates no branch or PR.
-      </p>
+        <p>
+          Then review, commit, and push the workflow changes through your usual
+          process. BoxCI creates no branch or PR.
+        </p>
+      </section>
 
-      <h2 id="why">Why BoxCI</h2>
-      <ul class="plain">
-        <li>
-          <strong>Bring your existing CI.</strong>
-          <code>boxci migrate</code> retargets the jobs you already have
-          (Blacksmith <code>runs-on</code> labels, for example) as a local diff
-          you review and commit.
-        </li>
-        <li>
-          <strong>Agent-ready.</strong> The bundled
-          <a
-            href="https://github.com/balasivagn/boxci/blob/main/skills/boxci-migrate/SKILL.md"
-            ><code>boxci-migrate</code> skill</a
-          >
-          teaches your coding agent to drive <code>boxci migrate</code> instead
-          of hand-editing YAML.
-        </li>
-        <li>
-          <strong>Reviewable.</strong> <code>boxci init --dry-run</code> shows
-          what setup will create. The real run leaves workflow files locally for
-          your review.
-        </li>
-        <li>
-          <strong>Nothing extra to keep running.</strong> No keepalive, no
-          webhook server, no BoxCI account. The wake step lives inside GitHub
-          Actions.
-        </li>
-        <li>
-          <strong>A dashboard that watches without touching.</strong>
-          <code>boxci dashboard</code> is local, authenticated and read-only. It
-          never wakes a VM.
-        </li>
-        <li>
-          <strong>Hosted fallback built in.</strong> Fork PRs, or a pool that is
-          not fully ready, run on hosted Ubuntu instead. Fork code never
-          receives your provider key.
-        </li>
-      </ul>
+      <section class="site-section" aria-labelledby="why">
+        <div class="sec-head">
+          <h2 class="sec-head-title" id="why">Why BoxCI</h2>
+        </div>
+        <ul class="projects-grid">
+          <li class="project-card">
+            <strong class="project-name">Bring your existing CI.</strong>
+            <span class="project-blurb"
+              ><code>boxci migrate</code> retargets the jobs you already have
+              (Blacksmith <code>runs-on</code> labels, for example) as a local
+              diff you review and commit.</span
+            >
+          </li>
+          <li class="project-card">
+            <strong class="project-name">Agent-ready.</strong>
+            <span class="project-blurb"
+              >The bundled
+              <a
+                href="https://github.com/balasivagn/boxci/blob/main/skills/boxci-migrate/SKILL.md"
+                ><code>boxci-migrate</code> skill</a
+              >
+              teaches your coding agent to drive
+              <code>boxci migrate</code> instead of hand-editing YAML.</span
+            >
+          </li>
+          <li class="project-card">
+            <strong class="project-name">Reviewable.</strong>
+            <span class="project-blurb"
+              ><code>boxci init --dry-run</code> shows what setup will create.
+              The real run leaves workflow files locally for your review.</span
+            >
+          </li>
+          <li class="project-card">
+            <strong class="project-name">Nothing extra to keep running.</strong>
+            <span class="project-blurb"
+              >No keepalive, no webhook server, no BoxCI account. The wake step
+              lives inside GitHub Actions.</span
+            >
+          </li>
+          <li class="project-card">
+            <strong class="project-name"
+              >A dashboard that watches without touching.</strong
+            >
+            <span class="project-blurb"
+              ><code>boxci dashboard</code> is local, authenticated and
+              read-only. It never wakes a VM.</span
+            >
+          </li>
+          <li class="project-card">
+            <strong class="project-name">Hosted fallback built in.</strong>
+            <span class="project-blurb"
+              >Fork PRs, or a pool that is not fully ready, run on hosted Ubuntu
+              instead. Fork code never receives your provider key.</span
+            >
+          </li>
+        </ul>
+      </section>
 
-      <h2 id="how">How it works</h2>
-      <figure>
-        <img
-          src="architecture/boxci.svg"
-          alt="BoxCI architecture: local setup, hosted wake routing, and passive monitoring"
-          loading="lazy"
-        />
-      </figure>
-      <ol class="steps">
-        <li>
-          <strong>Wake.</strong> A hosted Ubuntu job reads the pool variable and
-          CI secret. For a trusted event it wakes every pool VM at once and
-          checks their runner services. This privileged step never checks out PR
-          code.
-        </li>
-        <li>
-          <strong>Route.</strong> If the whole pool is ready, the build targets
-          your dedicated self-hosted label. Otherwise, and always for fork PRs,
-          it falls back to hosted <code>ubuntu-24.04</code>.
-        </li>
-        <li>
-          <strong>Run.</strong> GitHub assigns the build to an idle runner with
-          matching labels. Afterwards the VMs keep InstaBox's normal idle
-          suspension.
-        </li>
-      </ol>
+      <section class="site-section" aria-labelledby="how">
+        <div class="sec-head">
+          <h2 class="sec-head-title" id="how">How it works</h2>
+        </div>
+        <figure class="figure">
+          <div class="diagram-frame">
+            <img
+              src="architecture/boxci.svg"
+              alt="BoxCI architecture: local setup, hosted wake routing, and passive monitoring"
+              loading="lazy"
+            />
+          </div>
+        </figure>
+        <ol class="note-list">
+          <li class="note-item">
+            <span class="note-body"
+              ><span
+                ><strong>Wake.</strong> A hosted Ubuntu job reads the pool
+                variable and CI secret. For a trusted event it wakes every pool
+                VM at once and checks their runner services. This privileged
+                step never checks out PR code.</span
+              ></span
+            >
+          </li>
+          <li class="note-item">
+            <span class="note-body"
+              ><span
+                ><strong>Route.</strong> If the whole pool is ready, the build
+                targets your dedicated self-hosted label. Otherwise, and always
+                for fork PRs, it falls back to hosted
+                <code>ubuntu-24.04</code>.</span
+              ></span
+            >
+          </li>
+          <li class="note-item">
+            <span class="note-body"
+              ><span
+                ><strong>Run.</strong> GitHub assigns the build to an idle
+                runner with matching labels. Afterwards the VMs keep InstaBox's
+                normal idle suspension.</span
+              ></span
+            >
+          </li>
+        </ol>
+      </section>
 
-      <h2 id="commands">Commands</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Command</th>
-              <th scope="col">What it does</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><code>boxci --version</code></td>
-              <td>Show the installed CLI version</td>
-            </tr>
-            <tr>
-              <td><code>boxci init</code></td>
-              <td>
-                Set up runners, secret and pool variable; write only the wake
-                helper
-              </td>
-            </tr>
-            <tr>
-              <td><code>boxci init --dry-run</code></td>
-              <td>Preview setup without creating anything</td>
-            </tr>
-            <tr>
-              <td><code>boxci migrate</code></td>
-              <td>Move existing workflow jobs onto the pool</td>
-            </tr>
-            <tr>
-              <td><code>boxci ci run</code></td>
-              <td>
-                Dispatch a connected application workflow; use
-                <code>--workflow file.yml</code> to select one
-              </td>
-            </tr>
-            <tr>
-              <td><code>boxci status</code></td>
-              <td>VM and runner states plus recent jobs (passive)</td>
-            </tr>
-            <tr>
-              <td><code>boxci doctor</code></td>
-              <td>Check account, quota, mapping, merge state, key expiry</td>
-            </tr>
-            <tr>
-              <td><code>boxci dashboard</code></td>
-              <td>Start or reopen the background, read-only dashboard</td>
-            </tr>
-            <tr>
-              <td><code>boxci wake</code></td>
-              <td>Explicitly wake the pool</td>
-            </tr>
-            <tr>
-              <td><code>boxci pool add --count 1</code></td>
-              <td>Add a VM to the pool, within your quota</td>
-            </tr>
-            <tr>
-              <td><code>boxci auth renew</code></td>
-              <td>Rotate the 30-day CI credential</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="muted">
-        Run <code>boxci --help</code> to see every command and flag in your
-        installed version.
-      </p>
+      <section class="site-section" aria-labelledby="commands">
+        <div class="sec-head">
+          <h2 class="sec-head-title" id="commands">Commands</h2>
+        </div>
+        <div class="table-wrap">
+          <table class="links-table">
+            <thead>
+              <tr>
+                <th scope="col">Command</th>
+                <th scope="col">What it does</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>boxci --version</code></td>
+                <td>Show the installed CLI version</td>
+              </tr>
+              <tr>
+                <td><code>boxci init</code></td>
+                <td>
+                  Set up runners, secret and pool variable; write only the wake
+                  helper
+                </td>
+              </tr>
+              <tr>
+                <td><code>boxci init --dry-run</code></td>
+                <td>Preview setup without creating anything</td>
+              </tr>
+              <tr>
+                <td><code>boxci migrate</code></td>
+                <td>Move existing workflow jobs onto the pool</td>
+              </tr>
+              <tr>
+                <td><code>boxci ci run</code></td>
+                <td>
+                  Dispatch a connected application workflow; use
+                  <code>--workflow file.yml</code> to select one
+                </td>
+              </tr>
+              <tr>
+                <td><code>boxci status</code></td>
+                <td>VM and runner states plus recent jobs (passive)</td>
+              </tr>
+              <tr>
+                <td><code>boxci doctor</code></td>
+                <td>Check account, quota, mapping, merge state, key expiry</td>
+              </tr>
+              <tr>
+                <td><code>boxci dashboard</code></td>
+                <td>Start or reopen the background, read-only dashboard</td>
+              </tr>
+              <tr>
+                <td><code>boxci wake</code></td>
+                <td>Explicitly wake the pool</td>
+              </tr>
+              <tr>
+                <td><code>boxci pool add --count 1</code></td>
+                <td>Add a VM to the pool, within your quota</td>
+              </tr>
+              <tr>
+                <td><code>boxci auth renew</code></td>
+                <td>Rotate the 30-day CI credential</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Run <code>boxci --help</code> to see every command and flag in your
+          installed version.
+        </p>
+      </section>
 
-      <h2 id="requirements">Requirements</h2>
-      <ul class="plain">
-        <li>
-          Node.js <code>^22.19.0 || &gt;=24.5.0</code> (22.19+ on 22.x, or
-          24.5+), npm, Git and access to GitHub. npm does not block installs on
-          older Node; it only warns, and setup commands stop.
-        </li>
-        <li>
-          A GitHub.com repository where you have admin access, with Actions
-          enabled.
-        </li>
-        <li>
-          An InstaBox account with capacity for at least one additional VM, or
-          an existing verified CI pool.
-        </li>
-        <li>
-          Use a dedicated InstaBox account for CI if you can. The CI key can
-          execute commands on every VM in its account.
-        </li>
-      </ul>
+      <section class="site-section" aria-labelledby="requirements">
+        <div class="sec-head">
+          <h2 class="sec-head-title" id="requirements">Requirements</h2>
+        </div>
+        <ul class="now-list">
+          <li>
+            Node.js <code>^22.19.0 || &gt;=24.5.0</code> (22.19+ on 22.x, or
+            24.5+), npm, Git and access to GitHub. npm does not block installs
+            on older Node; it only warns, and setup commands stop.
+          </li>
+          <li>
+            A GitHub.com repository where you have admin access, with Actions
+            enabled.
+          </li>
+          <li>
+            An InstaBox account with capacity for at least one additional VM, or
+            an existing verified CI pool.
+          </li>
+          <li>
+            Use a dedicated InstaBox account for CI if you can. The CI key can
+            execute commands on every VM in its account.
+          </li>
+        </ul>
+      </section>
 
-      <h2 id="know">Good to know</h2>
-      <ul class="plain">
-        <li>
-          BoxCI is an early release. The current published version is shown on
-          the
-          <a href="https://www.npmjs.com/package/@balasivagn/boxci"
-            >npm package page</a
-          >.
-        </li>
-        <li>
-          The CI credential expires every 30 days, with no automatic renewal or
-          reminder. Renew it with <code>boxci auth renew</code>.
-        </li>
-        <li>
-          BoxCI makes no cost or speed promises. InstaBox usage, the hosted wake
-          and fallback jobs, and other services follow their own billing.
-        </li>
-        <li>
-          BoxCI is an independent open-source integration. It is not built or
-          endorsed by InstaBox, and it is not affiliated with boxci.dev.
-        </li>
-      </ul>
+      <section class="site-section" aria-labelledby="know">
+        <div class="sec-head">
+          <h2 class="sec-head-title" id="know">Good to know</h2>
+        </div>
+        <ul class="now-list">
+          <li>
+            BoxCI is an early release. The current published version is shown on
+            the
+            <a href="https://www.npmjs.com/package/@balasivagn/boxci"
+              >npm package page</a
+            >.
+          </li>
+          <li>
+            The CI credential expires every 30 days, with no automatic renewal
+            or reminder. Renew it with <code>boxci auth renew</code>.
+          </li>
+          <li>
+            BoxCI makes no cost or speed promises. InstaBox usage, the hosted
+            wake and fallback jobs, and other services follow their own billing.
+          </li>
+          <li>
+            BoxCI is an independent open-source integration. It is not built or
+            endorsed by InstaBox, and it is not affiliated with boxci.dev.
+          </li>
+        </ul>
+      </section>
 
-      <h2 id="docs">Docs</h2>
-      <ul class="plain">
-        <li>
-          <a href="https://github.com/balasivagn/boxci#readme">README</a>: quick
-          start, commands, migration and caveats
-        </li>
-        <li>
-          <a
-            href="https://github.com/balasivagn/boxci/blob/main/docs/CONFIGURATION.md"
-            >Configuration</a
-          >: sign-in, local project records, repository settings, pool discovery
-        </li>
-        <li>
-          <a
-            href="https://github.com/balasivagn/boxci/blob/main/docs/OPERATIONS.md"
-            >Operations</a
-          >: status, renewal, adding capacity, recovery, troubleshooting,
-          cleanup
-        </li>
-        <li>
-          <a
-            href="https://github.com/balasivagn/boxci/blob/main/docs/ARCHITECTURE.md"
-            >Architecture</a
-          >: setup, CI and monitoring paths, with a source map
-        </li>
-        <li>
-          <a
-            href="https://github.com/balasivagn/boxci/blob/main/docs/VALIDATION.md"
-            >Validation</a
-          >: what is tested today and what still needs verification
-        </li>
-        <li>
-          <a href="https://github.com/balasivagn/boxci/blob/main/SECURITY.md"
-            >Security</a
-          >: credential scope and isolation limits
-        </li>
-      </ul>
+      <section class="site-section" aria-labelledby="docs">
+        <div class="sec-head">
+          <h2 class="sec-head-title" id="docs">Docs</h2>
+        </div>
+        <ul class="now-list">
+          <li>
+            <a href="https://github.com/balasivagn/boxci#readme">README</a>:
+            quick start, commands, migration and caveats
+          </li>
+          <li>
+            <a
+              href="https://github.com/balasivagn/boxci/blob/main/docs/CONFIGURATION.md"
+              >Configuration</a
+            >: sign-in, local project records, repository settings, pool
+            discovery
+          </li>
+          <li>
+            <a
+              href="https://github.com/balasivagn/boxci/blob/main/docs/OPERATIONS.md"
+              >Operations</a
+            >: status, renewal, adding capacity, recovery, troubleshooting,
+            cleanup
+          </li>
+          <li>
+            <a
+              href="https://github.com/balasivagn/boxci/blob/main/docs/ARCHITECTURE.md"
+              >Architecture</a
+            >: setup, CI and monitoring paths, with a source map
+          </li>
+          <li>
+            <a
+              href="https://github.com/balasivagn/boxci/blob/main/docs/VALIDATION.md"
+              >Validation</a
+            >: what is tested today and what still needs verification
+          </li>
+          <li>
+            <a href="https://github.com/balasivagn/boxci/blob/main/SECURITY.md"
+              >Security</a
+            >: credential scope and isolation limits
+          </li>
+        </ul>
+      </section>
     </main>
 
-    <footer>
-      <p>
-        <a href="https://github.com/balasivagn/boxci/blob/main/LICENSE"
-          >Apache-2.0</a
-        >. Made by <a href="https://github.com/balasivagn">Bala</a>. Source on
-        <a href="https://github.com/balasivagn/boxci">GitHub</a>.
-      </p>
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <p>
+          <a href="https://github.com/balasivagn/boxci/blob/main/LICENSE"
+            >Apache-2.0</a
+          >. Made by <a href="https://github.com/balasivagn">Bala</a>. Source on
+          <a href="https://github.com/balasivagn/boxci">GitHub</a>.
+        </p>
+      </div>
     </footer>
   </body>
 </html>
