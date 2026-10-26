@@ -24,7 +24,7 @@ BoxCI turns InstaBox VMs into dedicated GitHub Actions runners for your reposito
 
 ## Quick start
 
-Needs Node.js `^22.19.0 || >=24.5.0`, Git, admin on a GitHub repo, and an InstaBox account with room for one more VM.
+Needs Node.js `^22.19.0 || >=24.5.0` (use the latest patch release for security fixes, currently 22.23.4 or 24.22.1), Git, admin on a GitHub repo, and an InstaBox account with room for one more VM.
 
 ```sh
 npm install -g @balasivagn/boxci
