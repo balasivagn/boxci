@@ -103,7 +103,7 @@ More: [architecture and source map](docs/ARCHITECTURE.md) · [interactive diagra
 
 Flags: `--dry-run` previews any change, `--yes` skips the prompt, `--json` gives structured output, `--repo` selects the repository. `status`, `doctor` and `dashboard` never run guest commands or wake VMs.
 
-The dashboard keeps running after you close the terminal and doesn't restart on reboot. `--no-open` skips the browser, `--foreground` is for debugging, `--port N` picks a port (stop it first to change it). See [dashboard operations](docs/OPERATIONS.md#check-the-pool).
+The dashboard keeps running after you close the terminal and doesn't restart on reboot. `--no-open` skips the browser, `--foreground` is for debugging, `--port N` chooses the local port (0-65535; the default, 0, picks a free port; stop a running dashboard first to change it). See [dashboard operations](docs/OPERATIONS.md#check-the-pool).
 
 ## Migrate existing jobs
 
@@ -132,7 +132,7 @@ jobs:
 
 Commit the helper and its callers together. To have your agent do it, point it at [`skills/boxci-migrate/SKILL.md`](skills/boxci-migrate/SKILL.md) and ask, e.g. "move our Blacksmith test jobs onto BoxCI".
 
-- `--match` is a case-insensitive regex tested against each job's static `runs-on`. `--jobs` wins over `--match`. Dynamic expressions are skipped.
+- `--match` is a case-insensitive regular expression tested against each job's static `runs-on`. `--jobs` wins over `--match`. Dynamic expressions are skipped.
 - Pick Linux x64 jobs that also work on the hosted fallback. Check matrix jobs and complex `needs` by hand.
 - Only scheduling changes. Toolchains, services and caches stay as they are.
 - Generated inline wake blocks can be extracted. Customized ones and conflicting helper files need manual review.
