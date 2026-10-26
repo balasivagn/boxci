@@ -18,7 +18,7 @@ Notable changes to `@balasivagn/boxci`. Releases are published from GitHub relea
 
 ### Documentation
 
-- README states the Node.js requirement (`^22.23.4 || >=24.22.1`) at the start of the Quick start. The architecture guide and "Stop using BoxCI" describe the shared wake helper and what `migrate` changes (including the `permissions:` block it may add) instead of the old starter workflow. The dead boxci.dev link is removed. ([#4](https://github.com/balasivagn/boxci/pull/4), merged 26 Oct 2026)
+- README states the Node.js requirement (`^22.19.0 || >=24.5.0`) at the start of the Quick start. The architecture guide and "Stop using BoxCI" describe the shared wake helper and what `migrate` changes (including the `permissions:` block it may add) instead of the old starter workflow. The dead boxci.dev link is removed. ([#4](https://github.com/balasivagn/boxci/pull/4), merged 26 Oct 2026)
 - docs/VALIDATION.md records the v0.4.0 validation run: local checks against tag `v0.4.0` and the hosted Check results. ([#2](https://github.com/balasivagn/boxci/pull/2), merged 25 Oct 2026)
 - Contributing guide, code of conduct and issue/PR templates. ([#1](https://github.com/balasivagn/boxci/pull/1), merged 25 Oct 2026)
 

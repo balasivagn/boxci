@@ -9,7 +9,7 @@ export function configureCertificateTrust(api = tls) {
     typeof api.setDefaultCACertificates !== "function"
   )
     throw new Error(
-      "System certificate trust requires Node.js 22.23.4+ or 24.22.1+. Update Node.js and retry the same command; saved setup checkpoints are kept.",
+      "System certificate trust requires Node.js 22.19+ or 24.5+. Update Node.js and retry the same command; saved setup checkpoints are kept.",
     );
   // Preserve bundled, OpenSSL and NODE_EXTRA_CA_CERTS roots already selected by
   // Node. Only add roots the operating system already trusts.

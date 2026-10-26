@@ -5,7 +5,7 @@
 **GitHub Actions runners on your own InstaBox VMs.<br>They wake up for CI and pause again when idle.**
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Node 22.23.4+ / 24.22.1+](https://img.shields.io/badge/node-22.23.4%2B%20%2F%2024.22.1%2B-339933.svg?logo=node.js&logoColor=white)](package.json)
+[![Node 22.19+ / 24.5+](https://img.shields.io/badge/node-22.19%2B%20%2F%2024.5%2B-339933.svg?logo=node.js&logoColor=white)](package.json)
 [![npm version](https://img.shields.io/npm/v/@balasivagn/boxci.svg)](https://www.npmjs.com/package/@balasivagn/boxci)
 
 [Quick start](#quick-start) · [Use your agent](#set-up-with-a-coding-agent) · [How it works](#how-it-works) · [Commands](#commands) · [Migrate](#migrate-existing-jobs) · [Limits](#limits) · [Docs](#docs)
@@ -24,7 +24,7 @@ BoxCI turns InstaBox VMs into dedicated GitHub Actions runners for your reposito
 
 ## Quick start
 
-Needs Node.js `^22.23.4 || >=24.22.1`, Git, admin on a GitHub repo, and an InstaBox account with room for one more VM.
+Needs Node.js `^22.19.0 || >=24.5.0`, Git, admin on a GitHub repo, and an InstaBox account with room for one more VM.
 
 ```sh
 npm install -g @balasivagn/boxci

@@ -10,7 +10,7 @@ Do not report security problems in public issues, and never post credentials, AP
 
 ## Development setup
 
-You need Node.js 22.23.4+ (22.x) or 24.22.1+ (see `engines` in [package.json](package.json)), Python 3 and Git. The test suites need no live InstaBox or GitHub credentials.
+You need Node.js 22.19+ (22.x) or 24.5+ (see `engines` in [package.json](package.json)), Python 3 and Git. The test suites need no live InstaBox or GitHub credentials.
 
 ```sh
 git clone https://github.com/balasivagn/boxci.git
@@ -34,7 +34,7 @@ npm pack --dry-run
 - `npm run check` verifies formatting with the pinned Prettier version. Run `npm run format` to fix formatting.
 - `npm pack --dry-run` lists the files that would be published. Check that no scratch files or private state are included.
 
-The [Check workflow](.github/workflows/check.yml) runs `npm ci --ignore-scripts`, `npm run check`, `npm test`, the Python tests and `npm pack --dry-run` on Node 22.23.4, 22, 24.22.1 and 24 for every push and pull request. It also runs the dashboard tests on macOS and exercises the shared wake workflow.
+The [Check workflow](.github/workflows/check.yml) runs `npm ci --ignore-scripts`, `npm run check`, `npm test`, the Python tests and `npm pack --dry-run` on Node 22.19.0, 22, 24.5.0 and 24 for every push and pull request. It also runs the dashboard tests on macOS and exercises the shared wake workflow.
 
 To try a packed build locally, create the tarball in `dist/` and install it globally with `npm install --global` and the path of the `.tgz` file it prints:
 
